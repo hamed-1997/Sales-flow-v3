@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>SalesFlow | سیستم گزارش فروش</title>
+<meta name="description" content="SalesFlow — Smart Sales Reporting — سیستم گزارش فروش" />
+<meta name="theme-color" content="#155fa8" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="assets/favicon.png" type="image/png" />
+<link rel="apple-touch-icon" href="assets/icon-192.png" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body class="sf-boot">
+
+<!-- Shared icon sprite (Lucide-style outline icons, 24x24, stroke=currentColor) -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="icon-bar-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+    </symbol>
+    <symbol id="icon-box" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/>
+      <path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/>
+    </symbol>
+    <symbol id="icon-sliders" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="21" y1="4" x2="14" y2="4"/><line x1="10" y1="4" x2="3" y2="4"/><line x1="21" y1="12" x2="12" y2="12"/>
+      <line x1="8" y1="12" x2="3" y2="12"/><line x1="21" y1="20" x2="16" y2="20"/><line x1="12" y1="20" x2="3" y2="20"/>
+      <line x1="14" y1="2" x2="14" y2="6"/><line x1="8" y1="10" x2="8" y2="14"/><line x1="16" y1="18" x2="16" y2="22"/>
+    </symbol>
+    <symbol id="icon-upload-cloud" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 14.9A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.24"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/>
+    </symbol>
+    <symbol id="icon-file-text" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/>
+      <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/>
+    </symbol>
+    <symbol id="icon-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+      <line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>
+    </symbol>
+    <symbol id="icon-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+    </symbol>
+    <symbol id="icon-save" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2Z"/><path d="M17 21v-8H7v8"/><path d="M7 3v5h8"/>
+    </symbol>
+    <symbol id="icon-check-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/>
+    </symbol>
+    <symbol id="icon-alert-triangle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/>
+      <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+    </symbol>
+    <symbol id="icon-x-circle" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/>
+    </symbol>
+    <symbol id="icon-copy" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+    </symbol>
+    <symbol id="icon-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+    </symbol>
+    <symbol id="icon-chevron-up" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="18 15 12 9 6 15"/>
+    </symbol>
+    <symbol id="icon-chevron-down" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="6 9 12 15 18 9"/>
+    </symbol>
+    <symbol id="icon-grip" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+      <circle cx="9" cy="5" r="1.4"/><circle cx="9" cy="12" r="1.4"/><circle cx="9" cy="19" r="1.4"/>
+      <circle cx="15" cy="5" r="1.4"/><circle cx="15" cy="12" r="1.4"/><circle cx="15" cy="19" r="1.4"/>
+    </symbol>
+    <symbol id="icon-download" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+    </symbol>
+    <symbol id="icon-upload" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/>
+    </symbol>
+    <symbol id="icon-list" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/>
+      <line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/>
+    </symbol>
+    <symbol id="icon-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/>
+    </symbol>
+    <symbol id="icon-ban" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/>
+    </symbol>
+    <symbol id="icon-package-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M21 10V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l1.5-.87"/>
+      <path d="M3.27 6.96 12 12.01l8.73-5.05"/><path d="M12 22.08V12"/><circle cx="18.5" cy="18.5" r="2.5"/><line x1="20.5" y1="20.5" x2="22" y2="22"/>
+    </symbol>
+    <symbol id="icon-folder-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
+      <line x1="12" y1="11" x2="12" y2="17"/><line x1="9" y1="14" x2="15" y2="14"/>
+    </symbol>
+    <symbol id="icon-target" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/>
+    </symbol>
+    <symbol id="icon-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+      <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+    </symbol>
+    <symbol id="icon-image" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/>
+    </symbol>
+    <symbol id="icon-share" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+    </symbol>
+    <symbol id="icon-palette" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="13.5" cy="6.5" r=".5"/><circle cx="17.5" cy="10.5" r=".5"/><circle cx="8.5" cy="7.5" r=".5"/><circle cx="6.5" cy="12.5" r=".5"/>
+      <path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"/>
+    </symbol>
+    <symbol id="icon-calendar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+    </symbol>
+    <symbol id="icon-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+    </symbol>
+    <symbol id="icon-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+    </symbol>
+  </defs>
+</svg>
+
+<div id="app-shell">
+
+<!-- قفل برنامه — فقط وقتی رمزی تنظیم شده باشد نمایش داده می‌شود -->
+<div id="app-lock-overlay" style="display:none">
+  <div class="app-lock-box">
+    <div class="app-lock-icon"><svg width="32" height="32"><use href="#icon-lock"></use></svg></div>
+    <div class="app-lock-title">SalesFlow قفل است</div>
+    <div class="app-lock-subtitle">برای ادامه، رمز را وارد کنید</div>
+    <input type="password" id="app-lock-input" inputmode="numeric" autocomplete="off" placeholder="رمز" />
+    <div class="app-lock-error" id="app-lock-error" style="display:none">رمز اشتباه است</div>
+    <button class="btn btn-primary" id="app-lock-submit" style="width:100%">باز کردن</button>
+  </div>
+</div>
+
+
+  <!-- ===================== SIDEBAR ===================== -->
+  <aside class="sidebar">
+    <div class="sidebar-brand">
+      <img src="assets/logo-mark.png" alt="SalesFlow" />
+      <div class="sidebar-brand-text">
+        <span class="sidebar-brand-name">SalesFlow</span>
+        <span class="sidebar-brand-tagline">Smart Sales Reporting</span>
+      </div>
+    </div>
+    <div class="sidebar-divider"></div>
+    <nav class="sidebar-nav">
+      <button class="nav-item sidebar-nav-item active" data-view="reports">
+        <span class="icon"><svg><use href="#icon-bar-chart"></use></svg></span><span class="label">گزارش‌گیری</span>
+      </button>
+      <button class="nav-item sidebar-nav-item" data-view="management">
+        <span class="icon"><svg><use href="#icon-box"></use></svg></span><span class="label">مدیریت</span>
+      </button>
+      <button class="nav-item sidebar-nav-item" data-view="settings">
+        <span class="icon"><svg><use href="#icon-sliders"></use></svg></span><span class="label">تنظیمات</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer-card">
+      <img src="assets/logo-mark.png" alt="" />
+      <div class="sidebar-footer-card-text">
+        <span class="sidebar-footer-card-name">SalesFlow</span>
+        <span class="sidebar-footer-card-version">نسخه ۳</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ===================== BOTTOM NAV (mobile) ===================== -->
+  <nav class="bottom-nav">
+    <div class="bottom-nav-inner">
+      <button class="nav-item bottom-nav-item active" data-view="reports">
+        <span class="icon"><svg><use href="#icon-bar-chart"></use></svg></span><span>گزارش</span>
+      </button>
+      <button class="nav-item bottom-nav-item" data-view="management">
+        <span class="icon"><svg><use href="#icon-box"></use></svg></span><span>مدیریت</span>
+      </button>
+      <button class="nav-item bottom-nav-item" data-view="settings">
+        <span class="icon"><svg><use href="#icon-sliders"></use></svg></span><span>تنظیمات</span>
+      </button>
+    </div>
+  </nav>
+
+  <!-- ===================== MAIN ===================== -->
+  <div class="main">
+    <div class="view-scroll">
+
+      <!-- ===================== VIEW: REPORTS ===================== -->
+      <section class="view active" id="view-reports">
+        <div class="page-header">
+          <div class="page-header-title">گزارش‌گیری</div>
+          <div class="page-header-sub">گزارش فروش روزانه خود را در چند ثانیه تولید کنید</div>
+        </div>
+
+        <!-- گزارش کلی -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">گزارش کلی</div>
+              <div class="card-subtitle">فایل فروش روزانه را انتخاب کنید و گزارش را تولید کنید</div>
+            </div>
+          </div>
+
+          <div class="stack">
+            <div class="file-drop" id="sales-file-drop">
+              <input type="file" id="sales-file-input" accept=".xlsx,.xls" style="display:none" />
+              <span class="icon"><svg><use href="#icon-upload-cloud"></use></svg></span>
+              <button class="btn btn-secondary" id="btn-pick-sales-file">انتخاب فایل فروش</button>
+              <div class="file-drop-hint">یا فایل را همین‌جا رها کنید — XLS / XLSX</div>
+              <div class="row" style="justify-content:center; margin-top:var(--space-3)" id="sales-file-status-row">
+                <div class="file-drop-status" id="sales-file-status"></div>
+                <button class="btn btn-ghost btn-sm" id="btn-remove-sales-file" style="display:none">
+                  <span class="icon"><svg><use href="#icon-trash"></use></svg></span> حذف فایل و انتخاب فایل جدید
+                </button>
+              </div>
+            </div>
+
+            <div id="sales-file-warning-slot"></div>
+
+            <div class="row">
+              <button class="btn btn-primary" id="btn-generate-report" disabled>
+                <span class="icon"><svg><use href="#icon-bar-chart"></use></svg></span> تولید گزارش
+              </button>
+              <span class="loading-row" id="report-loading" style="display:none">
+                <span class="spinner dark"></span> در حال محاسبه گزارش...
+              </span>
+            </div>
+
+            <div id="undefined-codes-alert-slot"></div>
+
+            <div id="report-output">
+              <div class="empty-state">
+                <div class="icon"><svg><use href="#icon-file-text"></use></svg></div>
+                <div class="title">هنوز گزارشی تولید نشده است</div>
+                <div>فایل فروش را انتخاب کرده و روی «تولید گزارش» کلیک کنید</div>
+              </div>
+            </div>
+
+            <div class="row" id="full-report-trigger-row" style="display:none; margin-top:var(--space-2)">
+              <button class="btn btn-primary" id="btn-open-full-report">
+                <span class="icon"><svg><use href="#icon-image"></use></svg></span> نمایش گزارش کامل روز
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- گزارش کامل روز (خروجی تصویری) -->
+        <div class="card" id="full-report-card" style="display:none">
+          <div class="card-header">
+            <div>
+              <div class="card-title">گزارش کامل روز</div>
+              <div class="card-subtitle">دو تصویر آماده ارسال برای مدیران — لاین یک و لاین دو</div>
+            </div>
+          </div>
+          <div id="full-report-output"></div>
+          <div class="row" style="margin-top: var(--space-5)">
+            <button class="btn btn-primary" id="btn-save-daily-sale">
+              <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره فروش روز
+            </button>
+          </div>
+          <div class="field-hint" style="margin-top:var(--space-3)" id="save-daily-sale-hint">با این دکمه، فروش امروز در مخزن فروش ذخیره می‌شود و برای محاسبه «فروش از ابتدای ماه» روز بعد استفاده خواهد شد.</div>
+        </div>
+
+        <!-- گزارش تکی -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">گزارش تکی</div>
+              <div class="card-subtitle">مشاهده فروش یک گروه کالا در یک لاین مشخص</div>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label>لاین</label>
+              <select id="single-line-select"></select>
+            </div>
+            <div class="field">
+              <label>گروه کالا</label>
+              <select id="single-group-select"></select>
+            </div>
+          </div>
+
+          <div class="row" style="margin-top: var(--space-4)">
+            <button class="btn btn-primary" id="btn-single-report">
+              <span class="icon"><svg><use href="#icon-search"></use></svg></span> نمایش گزارش
+            </button>
+          </div>
+
+          <div id="single-report-output" style="margin-top: var(--space-5)"></div>
+        </div>
+
+      </section>
+
+      <!-- ===================== VIEW: MANAGEMENT ===================== -->
+      <section class="view" id="view-management">
+        <div class="page-header">
+          <div class="page-header-title">مدیریت</div>
+          <div class="page-header-sub">گروه‌های کالا، کدها و تعریف گزارش را مدیریت کنید</div>
+        </div>
+
+        <div class="tabs" id="management-tabs">
+          <button class="tab-btn active" data-mtab="groups">گروه کالاها</button>
+          <button class="tab-btn" data-mtab="products">کد کالاها</button>
+          <button class="tab-btn" data-mtab="report-def">تعریف گزارش کلی</button>
+          <button class="tab-btn" data-mtab="targets">اهداف ماهانه</button>
+          <button class="tab-btn" data-mtab="baseline">گزارش فروش تا روز</button>
+          <button class="tab-btn" data-mtab="history">تاریخچه فروش</button>
+        </div>
+
+        <!-- --- گروه کالاها --- -->
+        <div class="mtab-panel" id="mtab-groups">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">گروه کالاها</div>
+                <div class="card-subtitle">ترتیب گروه‌ها در گزارش‌ها همین ترتیب خواهد بود</div>
+              </div>
+              <button class="btn btn-primary" id="btn-add-group">
+                <span class="icon"><svg><use href="#icon-plus"></use></svg></span> افزودن گروه کالا
+              </button>
+            </div>
+            <div id="group-add-form-slot"></div>
+            <div id="groups-list-slot">
+              <div class="empty-state">
+                <div class="icon"><svg><use href="#icon-box"></use></svg></div>
+                <div class="title">هنوز گروهی ثبت نشده است</div>
+                <div>با دکمه «افزودن گروه کالا» شروع کنید</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">گروه‌های مادر</div>
+                <div class="card-subtitle">چند گروه کالا را زیرِ یک گروه مادر جمع کنید تا در گزارش، مجموعشان یک ردیف نمایش داده شود (مثلاً «کیلوس» = ماتادور + افس)</div>
+              </div>
+              <button class="btn btn-primary" id="btn-add-parent-group">
+                <span class="icon"><svg><use href="#icon-folder-plus"></use></svg></span> افزودن گروه مادر
+              </button>
+            </div>
+            <div id="parent-group-add-form-slot"></div>
+            <div id="parent-groups-list-slot">
+              <div class="empty-state">
+                <div class="icon"><svg><use href="#icon-folder-plus"></use></svg></div>
+                <div class="title">هنوز گروه مادری ثبت نشده است</div>
+                <div>با دکمه «افزودن گروه مادر» شروع کنید</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- --- کد کالاها --- -->
+        <div class="mtab-panel" id="mtab-products" style="display:none">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">ورود کالا</div>
+                <div class="card-subtitle">از فایل Excel یا به‌صورت دستی کالا وارد کنید</div>
+              </div>
+            </div>
+            <div class="tabs" id="product-entry-tabs">
+              <button class="tab-btn active" data-ptab="excel">ورود از Excel</button>
+              <button class="tab-btn" data-ptab="manual">ورود دستی</button>
+            </div>
+
+            <div id="ptab-excel" style="margin-top: var(--space-5)">
+              <div class="file-drop" id="products-file-drop">
+                <input type="file" id="products-file-input" accept=".xlsx,.xls" style="display:none" />
+                <span class="icon"><svg><use href="#icon-upload-cloud"></use></svg></span>
+                <button class="btn btn-secondary" id="btn-pick-products-file">انتخاب فایل Excel کالا</button>
+                <div class="field-hint" style="margin-top:var(--space-3)">ستون‌ها به ترتیب: کد کالا | گروه کالا | تعداد در کارتن</div>
+                <div class="file-drop-status" id="products-file-status"></div>
+              </div>
+            </div>
+
+            <div id="ptab-manual" style="display:none; margin-top: var(--space-5)">
+              <div class="form-grid">
+                <div class="field">
+                  <label>کد کالا</label>
+                  <input type="text" id="manual-product-code" placeholder="مثلاً 2222" />
+                </div>
+                <div class="field">
+                  <label>گروه کالا</label>
+                  <select id="manual-product-group"></select>
+                </div>
+                <div class="field">
+                  <label>تعداد در کارتن</label>
+                  <input type="number" id="manual-product-carton" min="0" step="1" placeholder="مثلاً 12" />
+                </div>
+              </div>
+              <div id="manual-product-error-slot"></div>
+              <div class="row" style="margin-top: var(--space-4)">
+                <button class="btn btn-primary" id="btn-save-manual-product">
+                  <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره کالا
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">لیست کالاها</div>
+                <div class="card-subtitle" id="products-count-sub">۰ کالا ثبت شده</div>
+              </div>
+              <div class="search-input-wrap" style="width:260px">
+                <input type="text" id="products-search" placeholder="جستجوی کد یا گروه..." />
+                <span class="icon"><svg><use href="#icon-search"></use></svg></span>
+              </div>
+            </div>
+            <div id="products-table-slot">
+              <div class="empty-state">
+                <div class="icon"><svg><use href="#icon-list"></use></svg></div>
+                <div class="title">هنوز کالایی ثبت نشده است</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- --- تعریف گزارش کلی --- -->
+        <div class="mtab-panel" id="mtab-report-def" style="display:none">
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><span class="line-dot line1"></span> تنظیمات لاین یک</div>
+              </div>
+              <div id="line1-groups-slot"></div>
+              <div class="row" style="margin-top: var(--space-4)">
+                <button class="btn btn-primary" id="btn-save-line1-def">
+                  <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره تنظیمات لاین یک
+                </button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><span class="line-dot line2"></span> تنظیمات لاین دو</div>
+              </div>
+              <div id="line2-groups-slot"></div>
+              <div class="row" style="margin-top: var(--space-4)">
+                <button class="btn btn-primary" id="btn-save-line2-def">
+                  <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره تنظیمات لاین دو
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- --- اهداف ماهانه --- -->
+        <div class="mtab-panel" id="mtab-targets" style="display:none">
+          <div class="field-hint" style="margin-bottom:var(--space-4)">
+            هدف ماهانه هرکدام از گروه‌های انتخاب‌شده برای گزارش هر لاین، به‌همراه هدف مجموع همان لاین را وارد کنید. هر وقت اهداف تغییر کرد، همین‌جا مقدار قبلی را پاک و مقدار جدید را وارد کنید.
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><span class="line-dot line1"></span> اهداف لاین یک</div>
+              </div>
+              <div id="targets-line1-slot"></div>
+              <div class="row" style="margin-top: var(--space-4)">
+                <button class="btn btn-primary" id="btn-save-targets-line1">
+                  <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره اهداف لاین یک
+                </button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><span class="line-dot line2"></span> اهداف لاین دو</div>
+              </div>
+              <div id="targets-line2-slot"></div>
+              <div class="row" style="margin-top: var(--space-4)">
+                <button class="btn btn-primary" id="btn-save-targets-line2">
+                  <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره اهداف لاین دو
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- --- گزارش فروش تا روز (مبدأ تجمعی ماه) --- -->
+        <div class="mtab-panel" id="mtab-baseline" style="display:none">
+          <div class="field-hint" style="margin-bottom:var(--space-4)">
+            فروش هر گروه کالا تا یک روز مشخص (معمولاً دیروز) را اینجا ببینید یا اصلاح کنید. برای شروع ماه جدید، «صفر کردن» بزنید؛ برای شروع از وسط ماه، تاریخ و مقدار هر گروه را وارد و ذخیره کنید — از فردای همان تاریخ، «ذخیره فروش روز» خودش روی همین اعداد جمع می‌زند.
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><span class="line-dot line1"></span> گزارش فروش تا روز — لاین یک</div>
+              </div>
+              <div id="baseline-line1-slot"></div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><span class="line-dot line2"></span> گزارش فروش تا روز — لاین دو</div>
+              </div>
+              <div id="baseline-line2-slot"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- --- تاریخچه فروش --- -->
+        <div class="mtab-panel" id="mtab-history" style="display:none">
+          <div class="field-hint" style="margin-bottom:var(--space-4)">
+            هر روزی که «ذخیره فروش روز» زده‌اید اینجاست. می‌توانید هر روز را باز کنید، اعداد هر گروه را اصلاح کنید یا کل آن روز را حذف کنید — بقیه‌ی محاسبات (گزارش فروش تا روز، گزارش‌های بعدی) خودش با این تغییر هماهنگ می‌شود.
+          </div>
+          <div class="grid-2">
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><span class="line-dot line1"></span> تاریخچه لاین یک</div>
+              </div>
+              <div id="history-line1-slot"></div>
+            </div>
+            <div class="card">
+              <div class="card-header">
+                <div class="card-title"><span class="line-dot line2"></span> تاریخچه لاین دو</div>
+              </div>
+              <div id="history-line2-slot"></div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+
+      <!-- ===================== VIEW: SETTINGS ===================== -->
+      <section class="view" id="view-settings">
+        <div class="page-header">
+          <div class="page-header-title">تنظیمات</div>
+          <div class="page-header-sub">پیکربندی ستون‌ها، لاین‌ها، ظاهر و پشتیبان‌گیری</div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">تنظیمات ستون‌های فایل فروش</div>
+              <div class="card-subtitle">حرف ستون مربوطه را در فایل Excel روزانه وارد کنید</div>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label>کد کالا</label>
+              <input type="text" id="col-code" maxlength="3" placeholder="مثلاً C" />
+            </div>
+            <div class="field">
+              <label>تعداد فروش</label>
+              <input type="text" id="col-qty" maxlength="3" placeholder="مثلاً F" />
+            </div>
+            <div class="field">
+              <label>تعداد در کارتن</label>
+              <input type="text" id="col-carton" maxlength="3" placeholder="مثلاً G" />
+            </div>
+            <div class="field">
+              <label>لاین</label>
+              <input type="text" id="col-line" maxlength="3" placeholder="مثلاً H" />
+            </div>
+            <div class="field">
+              <label>کد مشتری</label>
+              <input type="text" id="col-customer" maxlength="3" placeholder="مثلاً B" />
+            </div>
+            <div class="field">
+              <label>شماره پیش‌فاکتور</label>
+              <input type="text" id="col-invoice" maxlength="3" placeholder="مثلاً I" />
+              <div class="field-hint">اگر مقدار این ستون صفر باشد، آن سطر فاکتور نهایی‌نشده است و در گزارش حساب نمی‌شود</div>
+            </div>
+          </div>
+          <div id="columns-error-slot"></div>
+          <div class="row" style="margin-top: var(--space-5)">
+            <button class="btn btn-primary" id="btn-save-columns">
+              <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره تنظیمات
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">تعریف لاین‌ها</div>
+              <div class="card-subtitle">مقدار دقیق متن لاین همان‌طور که در فایل Excel نوشته شده وارد شود</div>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label><span class="line-dot line1"></span> لاین یک — مقدار دقیق Excel</label>
+              <input type="text" id="line1-excel-value" placeholder="مثلاً لاین 1" />
+            </div>
+            <div class="field">
+              <label><span class="line-dot line2"></span> لاین دو — مقدار دقیق Excel</label>
+              <input type="text" id="line2-excel-value" placeholder="مثلاً لاین 2" />
+            </div>
+          </div>
+          <div class="row" style="margin-top: var(--space-5)">
+            <button class="btn btn-primary" id="btn-save-lines">
+              <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره لاین‌ها
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon"><svg><use href="#icon-users"></use></svg></span> تعداد فروشنده هر لاین</div>
+              <div class="card-subtitle">برای محاسبه سرانه مشتری امروز هر لاین استفاده می‌شود</div>
+            </div>
+          </div>
+          <div class="form-grid">
+            <div class="field">
+              <label><span class="line-dot line1"></span> تعداد فروشنده لاین یک</label>
+              <input type="number" id="sellers-line1" min="0" step="1" placeholder="مثلاً 5" />
+            </div>
+            <div class="field">
+              <label><span class="line-dot line2"></span> تعداد فروشنده لاین دو</label>
+              <input type="number" id="sellers-line2" min="0" step="1" placeholder="مثلاً 5" />
+            </div>
+          </div>
+          <div class="row" style="margin-top: var(--space-5)">
+            <button class="btn btn-primary" id="btn-save-sellers">
+              <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره تعداد فروشنده
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon"><svg><use href="#icon-palette"></use></svg></span> تنظیمات ظاهری گزارش خروجی</div>
+              <div class="card-subtitle">فونت، رنگ‌ها و سایزهای دقیق دو تصویر گزارش کامل روز</div>
+            </div>
+          </div>
+          <div id="report-style-form-slot"></div>
+          <div class="row" style="margin-top: var(--space-5); flex-wrap:wrap">
+            <button class="btn btn-primary" id="btn-save-report-style">
+              <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره ظاهر گزارش
+            </button>
+            <button class="btn btn-secondary" id="btn-reset-report-style">
+              <span class="icon"><svg><use href="#icon-trash"></use></svg></span> بازگشت به حالت پیش‌فرض
+            </button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title"><span class="icon"><svg><use href="#icon-lock"></use></svg></span> قفل برنامه با رمز</div>
+              <div class="card-subtitle">یک صفحه‌ی قفل ساده — جلوی باز کردن سرسری اپ توسط دیگران را می‌گیرد (رمزنگاری واقعی داده‌ها نیست)</div>
+            </div>
+          </div>
+          <div id="app-lock-form-slot"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">ظاهر برنامه</div>
+              <div class="card-subtitle">اندازه متن برنامه را متناسب با نمایشگر خود تنظیم کنید</div>
+            </div>
+          </div>
+          <div class="card-section-label">اندازه متن</div>
+          <div class="tabs" id="font-size-tabs">
+            <button class="tab-btn" data-font-scale="1">کوچک · ۱۰۰٪</button>
+            <button class="tab-btn active" data-font-scale="1.1">متوسط · ۱۱۰٪</button>
+            <button class="tab-btn" data-font-scale="1.2">بزرگ · ۱۲۰٪</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">پشتیبان‌گیری</div>
+              <div class="card-subtitle">از گروه‌های کالا، کدهای کالا و تمام تنظیمات یک فایل خروجی بگیرید یا آن را روی سیستم دیگری بازیابی کنید</div>
+            </div>
+          </div>
+          <div class="row" style="flex-wrap:wrap">
+            <button class="btn btn-secondary" id="btn-export-backup">
+              <span class="icon"><svg><use href="#icon-download"></use></svg></span> خروجی گرفتن از تنظیمات
+            </button>
+            <button class="btn btn-secondary" id="btn-import-backup-trigger">
+              <span class="icon"><svg><use href="#icon-upload"></use></svg></span> بازیابی از فایل پشتیبان
+            </button>
+            <input type="file" id="backup-file-input" accept="application/json,.json" style="display:none" />
+          </div>
+          <div class="field-hint" style="margin-top:var(--space-3)">بازیابی از فایل پشتیبان، تمام اطلاعات فعلی را با اطلاعات فایل جایگزین می‌کند.</div>
+          <div class="field-hint" id="backup-status-text" style="margin-top:var(--space-2)"></div>
+        </div>
+
+      </section>
+
+    </div>
+  </div>
+</div>
+
+<div id="toast-region"></div>
+<div id="modal-region"></div>
+
+<script src="xlsx.full.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
