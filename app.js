@@ -3383,6 +3383,17 @@ function bindManagementView() {
     }
   });
 
+  $("#btn-add-parent-group") && $("#btn-add-parent-group").addEventListener("click", () => toggleParentGroupAddRow(true));
+  document.addEventListener("click", (e) => {
+    if (e.target && e.target.id === "btn-confirm-add-parent-group") handleAddParentGroup();
+    if (e.target && e.target.id === "btn-cancel-add-parent-group") toggleParentGroupAddRow(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && document.activeElement && document.activeElement.id === "new-parent-group-name") {
+      handleAddParentGroup();
+    }
+  });
+
   // product entry tabs
   $all("#product-entry-tabs .tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -3541,6 +3552,8 @@ async function init() {
 
   renderGroupAddForm();
   renderGroupsList();
+  renderParentGroupAddForm();
+  renderParentGroupsList();
   populateManualGroupSelect();
   renderProductsList();
   renderLineGroupCheckboxes();
