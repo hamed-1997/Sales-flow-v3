@@ -3011,9 +3011,8 @@ function renderLineReportCard(lineKey, lineLabel, dotClass, data) {
 function renderFullReport(data) {
   const out = $("#report-output");
   out.innerHTML = `
-    <div class="stack" style="gap:var(--space-6)">
+    <div class="grid-2">
       ${renderLineReportCard("line1", "لاین یک", "line1", data.line1)}
-      <div class="divider"></div>
       ${renderLineReportCard("line2", "لاین دو", "line2", data.line2)}
     </div>`;
   out.dataset.hasReport = "1";
