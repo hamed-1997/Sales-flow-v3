@@ -365,6 +365,10 @@ input, select, textarea { font-family: inherit; font-size: var(--font-size-md); 
 /* ---------- Tables ---------- */
 .table-wrap { overflow-x: auto; border: 1px solid var(--color-border); border-radius: var(--radius-md); }
 table.data-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-md); }
+/* used for small 2-column preview tables (e.g. the quick report cards) where
+   stretching to the full container width leaves a huge, confusing gap
+   between the value and its label — especially visible in a screenshot */
+table.data-table.compact { width: auto; min-width: 260px; max-width: 100%; }
 table.data-table th, table.data-table td { padding: var(--space-3) var(--space-4); text-align: right; }
 table.data-table th {
   background: var(--color-surface-alt);

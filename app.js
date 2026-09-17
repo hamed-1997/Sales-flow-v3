@@ -441,11 +441,17 @@ const state = {
     line1: { label: "لاین یک", excelValue: "" },
     line2: { label: "لاین دو", excelValue: "" },
   },
-  lineGroups: { line1: [], line2: [] }, // arrays of group ids — derived automatically from lineReportItems (real-group entries only); kept for اهداف/گزارش فروش تا روز/تاریخچه, unchanged since v2
+  lineGroups: { line1: [], line2: [] }, // arrays of group ids — derived automatically as the union of real-group entries across every reportFormats entry; kept for اهداف/گزارش فروش تا روز/تاریخچه, unchanged since v2
 
   // ---- SalesFlow نسخه ۳ additions ----
   parentGroups: [],     // [{id, name, order, childGroupIds:[groupId...], displayName}]
-  lineReportItems: { line1: [], line2: [] }, // [{type:'group'|'parent', id}] — ordered rows for the per-line report (تعریف گزارش کلی); source of truth for report display, supersedes lineGroups for that purpose
+  // قالب‌های گزارش (report formats) — هرکدام چینش/ترتیب گروه‌های خودش را به
+  // ازای هر لاین دارد، به‌همراه موقعیت ردیف «مجموع» (بالا/انتها). حداقل یک
+  // فرمت همیشه وجود دارد؛ تعداد فرمت‌ها نامحدود است (نه فقط دو تا).
+  // [{id, name, lineItems:{line1:[{type,id}...], line2:[...]}, totalPosition:'top'|'bottom'}]
+  reportFormats: [],
+  editingFormatId: null, // کدام فرمت الان در «تعریف گزارش کلی» ویرایش می‌شود
+  activeFormatId: null,  // کدام فرمت موقع «تولید گزارش» استفاده می‌شود
   fontScale: 1.1,
   salesWorkbookSheet: null, // current parsed worksheet (for report)
   salesFileLoaded: false,
@@ -474,17 +480,35 @@ async function hydrateState() {
   state.fontScale = await getSetting("fontScale", 1.1);
 
   state.parentGroups = (await Store.getAll("parentGroups")).sort((a, b) => a.order - b.order);
-  const rawReportItems = await getSetting("lineReportItems", null);
-  if (rawReportItems && rawReportItems.line1 && rawReportItems.line2) {
-    state.lineReportItems = rawReportItems;
+  const rawFormats = await getSetting("reportFormats", null);
+  if (Array.isArray(rawFormats) && rawFormats.length) {
+    state.reportFormats = rawFormats.map((f) => ({
+      id: f.id,
+      name: f.name || "فرمت",
+      lineItems: { line1: f.lineItems?.line1 || [], line2: f.lineItems?.line2 || [] },
+      totalPosition: f.totalPosition === "top" ? "top" : "bottom",
+    }));
   } else {
-    // migrating from before نسخه ۳: no lineReportItems saved yet — build it
-    // from the existing lineGroups (plain real-group ids) so nothing is lost.
-    state.lineReportItems = {
-      line1: (state.lineGroups.line1 || []).map((id) => ({ type: "group", id })),
-      line2: (state.lineGroups.line2 || []).map((id) => ({ type: "group", id })),
-    };
+    // migrating from پیش از پشتیبانی چند فرمت: یا lineReportItems قدیمی
+    // هست (نسخه ۳ اولیه) یا فقط lineGroups (قبل از آن) — هرکدام بود را به
+    // «فرمت ۱» تبدیل می‌کنیم و یک «فرمت ۲» خالی هم برای شروع می‌سازیم.
+    const legacyItems = await getSetting("lineReportItems", null);
+    const fmt1Items = legacyItems && legacyItems.line1 && legacyItems.line2
+      ? legacyItems
+      : {
+          line1: (state.lineGroups.line1 || []).map((id) => ({ type: "group", id })),
+          line2: (state.lineGroups.line2 || []).map((id) => ({ type: "group", id })),
+        };
+    state.reportFormats = [
+      { id: "fmt-1", name: "فرمت ۱", lineItems: { line1: [...fmt1Items.line1], line2: [...fmt1Items.line2] }, totalPosition: "bottom" },
+      { id: "fmt-2", name: "فرمت ۲", lineItems: { line1: [...fmt1Items.line1], line2: [...fmt1Items.line2] }, totalPosition: "bottom" },
+    ];
+    await setSetting("reportFormats", state.reportFormats);
   }
+  state.editingFormatId = await getSetting("editingFormatId", state.reportFormats[0].id);
+  if (!state.reportFormats.some((f) => f.id === state.editingFormatId)) state.editingFormatId = state.reportFormats[0].id;
+  state.activeFormatId = await getSetting("activeFormatId", state.reportFormats[0].id);
+  if (!state.reportFormats.some((f) => f.id === state.activeFormatId)) state.activeFormatId = state.reportFormats[0].id;
 
   state.monthlyTargets = await getSetting("monthlyTargets", state.monthlyTargets);
   state.targetTotals = await getSetting("targetTotals", state.targetTotals);
@@ -498,6 +522,11 @@ async function hydrateState() {
   state.appLockPinHash = await getSetting("appLockPinHash", "");
   state.lastBackupAt = await getSetting("lastBackupAt", "");
 }
+
+/** Report-format helpers (SalesFlow نسخه ۳ — چند فرمت گزارش). */
+function getFormat(id) { return state.reportFormats.find((f) => f.id === id) || state.reportFormats[0]; }
+function editingFormat() { return getFormat(state.editingFormatId); }
+function activeFormat() { return getFormat(state.activeFormatId); }
 
 function groupById(id) { return state.groups.find((g) => g.id === id); }
 function groupByName(name) { return state.groups.find((g) => g.name === name); }
@@ -799,19 +828,21 @@ async function handleDeleteGroup(id) {
   refreshAllGroupDependentUI();
 }
 
-/** Removes any lineReportItems entry (in either line) referencing group
- * `groupId`, and persists the cleanup. Used whenever a real group is
- * deleted or becomes ineligible (marked غیرقابل فروش). */
+/** Removes any report-item entry (in either line, across every فرمت گزارش)
+ * referencing group `groupId`, and persists the cleanup. Used whenever a
+ * real group is deleted or becomes ineligible (marked غیرقابل فروش). */
 async function removeGroupFromLineReportItems(groupId) {
   let changed = false;
-  for (const lineKey of ["line1", "line2"]) {
-    const before = state.lineReportItems[lineKey].length;
-    state.lineReportItems[lineKey] = state.lineReportItems[lineKey].filter(
-      (item) => !(item.type === "group" && item.id === groupId)
-    );
-    if (state.lineReportItems[lineKey].length !== before) changed = true;
+  for (const fmt of state.reportFormats) {
+    for (const lineKey of ["line1", "line2"]) {
+      const before = fmt.lineItems[lineKey].length;
+      fmt.lineItems[lineKey] = fmt.lineItems[lineKey].filter(
+        (item) => !(item.type === "group" && item.id === groupId)
+      );
+      if (fmt.lineItems[lineKey].length !== before) changed = true;
+    }
   }
-  if (changed) await setSetting("lineReportItems", state.lineReportItems);
+  if (changed) await setSetting("reportFormats", state.reportFormats);
 }
 
 /* ---------------------------------------------------------
@@ -1063,18 +1094,21 @@ async function handleDeleteParentGroup(id) {
   refreshAllGroupDependentUI();
 }
 
-/** Removes any lineReportItems entry referencing parent group `parentId`,
- * and persists the cleanup. Used when a parent group is deleted. */
+/** Removes any report-item entry referencing parent group `parentId`
+ * (in either line, across every فرمت گزارش), and persists the cleanup.
+ * Used when a parent group is deleted. */
 async function removeParentFromLineReportItems(parentId) {
   let changed = false;
-  for (const lineKey of ["line1", "line2"]) {
-    const before = state.lineReportItems[lineKey].length;
-    state.lineReportItems[lineKey] = state.lineReportItems[lineKey].filter(
-      (item) => !(item.type === "parent" && item.id === parentId)
-    );
-    if (state.lineReportItems[lineKey].length !== before) changed = true;
+  for (const fmt of state.reportFormats) {
+    for (const lineKey of ["line1", "line2"]) {
+      const before = fmt.lineItems[lineKey].length;
+      fmt.lineItems[lineKey] = fmt.lineItems[lineKey].filter(
+        (item) => !(item.type === "parent" && item.id === parentId)
+      );
+      if (fmt.lineItems[lineKey].length !== before) changed = true;
+    }
   }
-  if (changed) await setSetting("lineReportItems", state.lineReportItems);
+  if (changed) await setSetting("reportFormats", state.reportFormats);
 }
 
 function openGroupProductsModal(groupId) {
@@ -1353,9 +1387,113 @@ function initPendingLineOrder(lineKey) {
   // (for real groups) has since been marked "غیرقابل فروش" (non-sellable
   // groups can never contribute to a report, so they don't belong here).
   const sellableIds = new Set(state.groups.filter((g) => !g.nonSellable).map((g) => g.id));
-  pendingLineOrder[lineKey] = (state.lineReportItems[lineKey] || [])
+  pendingLineOrder[lineKey] = (editingFormat().lineItems[lineKey] || [])
     .filter((item) => (item.type === "group" ? sellableIds.has(item.id) : !!parentGroupById(item.id)))
     .map((item) => itemKey(item.type, item.id));
+}
+
+/** Renders the «قالب‌های گزارش» tab bar (مدیریت > تعریف گزارش کلی) — lets
+ * the user switch which format they're editing, add a new format, rename or
+ * delete the current one, and set that format's «مجموع» row position. This
+ * selection (editingFormatId) is independent of activeFormatId (which
+ * format is used when actually generating a report in گزارش‌گیری). */
+function renderReportFormatTabs() {
+  const slot = $("#report-format-tabs-slot");
+  if (!slot) return;
+  const current = editingFormat();
+  slot.innerHTML = `
+    <div class="tabs" id="report-format-tab-bar">
+      ${state.reportFormats
+        .map(
+          (f) => `<button class="tab-btn ${f.id === current.id ? "active" : ""}" data-select-format="${f.id}">${escapeHtml(f.name)}</button>`
+        )
+        .join("")}
+    </div>
+    <div class="row" style="margin-top:var(--space-3); align-items:center; flex-wrap:wrap; gap:var(--space-3)">
+      <div class="field" style="margin:0">
+        <label>نام فرمت</label>
+        <input type="text" id="report-format-name-input" value="${escapeHtml(current.name)}" style="width:160px" />
+      </div>
+      <div class="field" style="margin:0">
+        <label>موقعیت ردیف «مجموع»</label>
+        <div class="tabs" id="report-format-total-pos">
+          <button class="tab-btn ${current.totalPosition === "top" ? "active" : ""}" data-total-pos="top">بالای گزارش</button>
+          <button class="tab-btn ${current.totalPosition !== "top" ? "active" : ""}" data-total-pos="bottom">انتهای گزارش</button>
+        </div>
+      </div>
+      ${state.reportFormats.length > 1 ? `<button class="btn btn-secondary btn-sm" id="btn-delete-report-format" style="align-self:flex-end"><svg width="15" height="15"><use href="#icon-trash"></use></svg> حذف این فرمت</button>` : ""}
+    </div>`;
+
+  $all("[data-select-format]", slot).forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      state.editingFormatId = btn.dataset.selectFormat;
+      await setSetting("editingFormatId", state.editingFormatId);
+      renderReportFormatTabs();
+      renderLineGroupCheckboxes();
+    });
+  });
+  $("#report-format-name-input", slot).addEventListener("change", async (e) => {
+    const newName = normalizeStr(e.target.value) || current.name;
+    current.name = newName;
+    await setSetting("reportFormats", state.reportFormats);
+    renderReportFormatTabs();
+    populateReportFormatSelect();
+  });
+  $all("[data-total-pos]", slot).forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      current.totalPosition = btn.dataset.totalPos === "top" ? "top" : "bottom";
+      await setSetting("reportFormats", state.reportFormats);
+      renderReportFormatTabs();
+      renderLineGroupCheckboxes(); // reflect new مجموع position in the preview list
+    });
+  });
+  const delBtn = $("#btn-delete-report-format", slot);
+  if (delBtn) {
+    delBtn.addEventListener("click", async () => {
+      const ok = await confirmModal({
+        icon: "alert-triangle",
+        title: "حذف فرمت گزارش",
+        body: `آیا از حذف «${escapeHtml(current.name)}» مطمئن هستید؟ چینش گروه‌های ذخیره‌شده در این فرمت هم حذف می‌شود.`,
+        confirmLabel: "حذف فرمت",
+        confirmClass: "btn-danger",
+      });
+      if (!ok) return;
+      state.reportFormats = state.reportFormats.filter((f) => f.id !== current.id);
+      if (state.editingFormatId === current.id) state.editingFormatId = state.reportFormats[0].id;
+      if (state.activeFormatId === current.id) {
+        state.activeFormatId = state.reportFormats[0].id;
+        await setSetting("activeFormatId", state.activeFormatId);
+      }
+      await setSetting("reportFormats", state.reportFormats);
+      await setSetting("editingFormatId", state.editingFormatId);
+      renderReportFormatTabs();
+      renderLineGroupCheckboxes();
+      populateReportFormatSelect();
+      showToast("فرمت حذف شد", "success");
+    });
+  }
+}
+
+async function handleAddReportFormat() {
+  const n = state.reportFormats.length + 1;
+  const newFmt = { id: `fmt-${Date.now()}`, name: `فرمت ${toPersianDigits(n)}`, lineItems: { line1: [], line2: [] }, totalPosition: "bottom" };
+  state.reportFormats.push(newFmt);
+  state.editingFormatId = newFmt.id;
+  await setSetting("reportFormats", state.reportFormats);
+  await setSetting("editingFormatId", state.editingFormatId);
+  renderReportFormatTabs();
+  renderLineGroupCheckboxes();
+  populateReportFormatSelect();
+  showToast("فرمت جدید اضافه شد — حالا گروه‌های هر لاین را برایش انتخاب کنید", "success");
+}
+
+/** Fills the گزارش‌گیری screen's «قالب گزارش» select with the current list
+ * of formats, keeping state.activeFormatId selected. */
+function populateReportFormatSelect() {
+  const sel = $("#report-format-select");
+  if (!sel) return;
+  sel.innerHTML = state.reportFormats.map((f) => `<option value="${f.id}">${escapeHtml(f.name)}</option>`).join("");
+  sel.value = state.activeFormatId;
 }
 
 function renderLineGroupCheckboxes() {
@@ -1381,8 +1519,14 @@ function renderLineOrderList(lineKey, globalSorted, parentSorted) {
   const unselectedGroups = globalSorted.filter((g) => !selectedSet.has(itemKey("group", g.id)));
   const unselectedParents = parentSorted.filter((p) => !selectedSet.has(itemKey("parent", p.id)));
 
+  const totalPos = editingFormat().totalPosition;
+  const totalRowHtml = `
+        <div class="order-item table-row-total" style="cursor:default">
+          <span class="name">مجموع</span>
+          <span class="count">${totalPos === "top" ? "همیشه اولین ردیف گزارش" : "همیشه آخرین ردیف گزارش"}</span>
+        </div>`;
   const selectedHtml = selectedItems.length
-    ? `<div class="order-list" data-line-order-list="${lineKey}">${selectedItems
+    ? `<div class="order-list" data-line-order-list="${lineKey}">${totalPos === "top" ? totalRowHtml : ""}${selectedItems
         .map((it, idx) => {
           const isParent = it.type === "parent";
           const badge = isParent ? `<span class="badge badge-neutral">گروه مادر</span>` : "";
@@ -1399,11 +1543,7 @@ function renderLineOrderList(lineKey, globalSorted, parentSorted) {
             </div>
           </div>`;
         })
-        .join("")}
-        <div class="order-item table-row-total" style="cursor:default">
-          <span class="name">مجموع</span>
-          <span class="count">همیشه آخرین ردیف گزارش</span>
-        </div>
+        .join("")}${totalPos === "bottom" ? totalRowHtml : ""}
       </div>`
     : `<div class="field-hint" style="margin-bottom:var(--space-3)">هنوز گروهی برای این لاین انتخاب نشده است</div>`;
 
@@ -1430,7 +1570,7 @@ function renderLineOrderList(lineKey, globalSorted, parentSorted) {
     : "";
 
   slot.innerHTML = `
-    <div class="field-hint" style="margin-bottom:var(--space-3)">با دستگیره ⠿ یا دکمه‌های بالا/پایین ترتیب نمایش گروه‌ها (و گروه‌های مادر) در گزارش این لاین را تعیین کنید. ردیف «مجموع» همیشه آخرین ردیف باقی می‌ماند. یک گروه و گروه مادرش را می‌توان هم‌زمان انتخاب کرد.</div>
+    <div class="field-hint" style="margin-bottom:var(--space-3)">با دستگیره ⠿ یا دکمه‌های بالا/پایین ترتیب نمایش گروه‌ها (و گروه‌های مادر) در گزارش این لاین را تعیین کنید. موقعیت ردیف «مجموع» را از تنظیمات فرمت (بالای این کارت) عوض کنید. یک گروه و گروه مادرش را می‌توان هم‌زمان انتخاب کرد.</div>
     ${selectedHtml}
     ${unselectedHtml}`;
 
@@ -1486,12 +1626,21 @@ function renderLineOrderList(lineKey, globalSorted, parentSorted) {
 
 async function handleSaveLineGroups(lineKey) {
   const items = pendingLineOrder[lineKey].map((key) => parseItemKey(key));
-  state.lineReportItems[lineKey] = items;
-  await setSetting("lineReportItems", state.lineReportItems);
+  editingFormat().lineItems[lineKey] = items;
+  await setSetting("reportFormats", state.reportFormats);
 
-  // derive lineGroups (real-group ids only, in the same relative order) for
-  // اهداف ماهانه / گزارش فروش تا روز / تاریخچه فروش — unaffected by گروه مادر
-  state.lineGroups[lineKey] = items.filter((it) => it.type === "group").map((it) => it.id);
+  // derive lineGroups for اهداف ماهانه / گزارش فروش تا روز / تاریخچه فروش —
+  // این‌ها به فرمت خاصی وابسته نیستند، پس اتحاد گروه‌های واقعیِ استفاده‌شده
+  // در همهٔ فرمت‌های گزارش برای این لاین محاسبه می‌شود (نه فقط فرمتی که الان
+  // ویرایش می‌شود) تا هیچ گروهی از قلم نیفتد.
+  const unionIds = [];
+  const seen = new Set();
+  for (const fmt of state.reportFormats) {
+    for (const it of fmt.lineItems[lineKey] || []) {
+      if (it.type === "group" && !seen.has(it.id)) { seen.add(it.id); unionIds.push(it.id); }
+    }
+  }
+  state.lineGroups[lineKey] = unionIds;
   await setSetting("lineGroups", state.lineGroups);
 
   // persist any edited "نام نمایشی در گزارش" values for this line's items
@@ -2316,7 +2465,7 @@ async function handleResetReportStyle() {
 async function handleExportBackup() {
   const payload = {
     app: "SalesFlow",
-    backupVersion: 3,
+    backupVersion: 4,
     exportedAt: new Date().toISOString(),
     groups: state.groups,
     products: state.products,
@@ -2333,7 +2482,9 @@ async function handleExportBackup() {
     salesLog: await Store.getAll("salesLog"),
     // SalesFlow نسخه ۳ — گروه‌های مادر
     parentGroups: state.parentGroups,
-    lineReportItems: state.lineReportItems,
+    // SalesFlow نسخه ۳ — قالب‌های گزارش (چند فرمت)
+    reportFormats: state.reportFormats,
+    activeFormatId: state.activeFormatId,
   };
   const json = JSON.stringify(payload, null, 2);
   const blob = new Blob([json], { type: "application/json" });
@@ -2403,15 +2554,28 @@ async function handleImportBackupFile(file) {
     if (Array.isArray(payload.parentGroups)) {
       for (const p of payload.parentGroups) await Store.put("parentGroups", p);
     }
-    if (payload.lineReportItems) await setSetting("lineReportItems", payload.lineReportItems);
+    // SalesFlow نسخه ۳ — قالب‌های گزارش: پشتیبان‌های جدید reportFormats
+    // دارند؛ پشتیبان‌های قدیمی‌تر (backupVersion ۳ یا قبل‌تر) فقط
+    // lineReportItems دارند — همان را ذخیره می‌کنیم تا منطق مهاجرت خودِ
+    // hydrateState آن را به «فرمت ۱ / فرمت ۲» تبدیل کند.
+    if (Array.isArray(payload.reportFormats)) {
+      await setSetting("reportFormats", payload.reportFormats);
+      if (payload.activeFormatId) await setSetting("activeFormatId", payload.activeFormatId);
+    } else if (payload.lineReportItems) {
+      await setSetting("lineReportItems", payload.lineReportItems);
+    }
 
     await hydrateState();
     document.documentElement.style.setProperty("--font-scale", String(state.fontScale));
 
     renderGroupsList();
+    renderParentGroupAddForm();
+    renderParentGroupsList();
     renderProductsList();
     populateManualGroupSelect();
+    renderReportFormatTabs();
     renderLineGroupCheckboxes();
+    populateReportFormatSelect();
     loadSettingsFormFromState();
     populateSingleReportSelectors();
     handleRemoveSalesFile();
@@ -2672,6 +2836,7 @@ let currentSalesRows = null; // cached parsed rows of the currently selected sal
 let lastUndefinedCodes = [];
 let lastReportData = null;        // most recently generated {line1, line2} report (SalesFlow نسخه ۲)
 let lastFullReportContext = null; // computed data behind the currently-shown full-report images
+let lastComputedSums = null;      // {line1:{groupSumsDisplay,groupSumsCartonEquivalent,customerCount}, line2:{...}} — cached raw sums from the last «تولید گزارش», independent of فرمت, so switching فرمت afterwards doesn't require re-reading the Excel file
 let fontDataUrlCache = {};        // cache of local woff2 fonts -> base64 data URLs, for image export
 
 async function handleSalesFileSelected(file) {
@@ -2709,6 +2874,7 @@ function handleRemoveSalesFile() {
   lastUndefinedCodes = [];
   lastReportData = null;
   lastFullReportContext = null;
+  lastComputedSums = null;
   $("#sales-file-input").value = "";
   $("#sales-file-status").textContent = "";
   $("#sales-file-drop").classList.remove("has-file");
@@ -2765,15 +2931,12 @@ async function handleGenerateReport() {
     currentSalesRows.rows, state.columnMap, state.lines, productMap, groupsById
   );
 
-  const r1 = buildLineReportRows(line1.groupSumsDisplay, line1.groupSumsCartonEquivalent, state.lineReportItems.line1);
-  const r2 = buildLineReportRows(line2.groupSumsDisplay, line2.groupSumsCartonEquivalent, state.lineReportItems.line2);
-
-  $("#report-loading").style.display = "none";
-  lastReportData = {
-    line1: { ...r1, customerCount: line1.customers.size },
-    line2: { ...r2, customerCount: line2.customers.size },
+  lastComputedSums = {
+    line1: { groupSumsDisplay: line1.groupSumsDisplay, groupSumsCartonEquivalent: line1.groupSumsCartonEquivalent, customerCount: line1.customers.size },
+    line2: { groupSumsDisplay: line2.groupSumsDisplay, groupSumsCartonEquivalent: line2.groupSumsCartonEquivalent, customerCount: line2.customers.size },
   };
-  renderFullReport(lastReportData);
+  $("#report-loading").style.display = "none";
+  rebuildQuickReportFromCache();
   $("#full-report-trigger-row").style.display = "flex";
   $("#full-report-card").style.display = "none";
   $("#full-report-output").innerHTML = "";
@@ -2799,6 +2962,22 @@ async function handleGenerateReport() {
   }
 }
 
+/** Rebuilds the quick-preview report (#report-output) from lastComputedSums
+ * using the currently active فرمت's item lists — used both right after
+ * «تولید گزارش» and whenever the format selector changes afterwards, so a
+ * format switch never requires re-reading the Excel file. */
+function rebuildQuickReportFromCache() {
+  if (!lastComputedSums) return;
+  const fmt = activeFormat();
+  const r1 = buildLineReportRows(lastComputedSums.line1.groupSumsDisplay, lastComputedSums.line1.groupSumsCartonEquivalent, fmt.lineItems.line1);
+  const r2 = buildLineReportRows(lastComputedSums.line2.groupSumsDisplay, lastComputedSums.line2.groupSumsCartonEquivalent, fmt.lineItems.line2);
+  lastReportData = {
+    line1: { ...r1, customerCount: lastComputedSums.line1.customerCount, totalPosition: fmt.totalPosition },
+    line2: { ...r2, customerCount: lastComputedSums.line2.customerCount, totalPosition: fmt.totalPosition },
+  };
+  renderFullReport(lastReportData);
+}
+
 function renderLineReportCard(lineKey, lineLabel, dotClass, data) {
   const rowsHtml = data.rows.length
     ? data.rows
@@ -2808,6 +2987,8 @@ function renderLineReportCard(lineKey, lineLabel, dotClass, data) {
         })
         .join("")
     : `<tr><td colspan="2" style="text-align:center;color:var(--color-text-faint)">هیچ گروهی برای نمایش در این لاین تعریف نشده است</td></tr>`;
+  const totalRowHtml = `<tr class="table-row-total"><td>مجموع</td><td class="num">${formatNumber(data.totalRounded)}</td></tr>`;
+  const bodyHtml = data.totalPosition === "top" ? totalRowHtml + rowsHtml : rowsHtml + totalRowHtml;
 
   return `
     <div class="line-block">
@@ -2816,11 +2997,10 @@ function renderLineReportCard(lineKey, lineLabel, dotClass, data) {
         <span class="customer-count">تعداد مشتری: ${data.customerCount.toLocaleString("fa-IR")}</span>
       </div>
       <div class="table-wrap">
-        <table class="data-table">
+        <table class="data-table compact">
           <thead><tr><th>گروه کالا</th><th class="num">فروش</th></tr></thead>
           <tbody>
-            ${rowsHtml}
-            <tr class="table-row-total"><td>مجموع</td><td class="num">${formatNumber(data.totalRounded)}</td></tr>
+            ${bodyHtml}
           </tbody>
         </table>
       </div>
@@ -2842,7 +3022,8 @@ function renderFullReport(data) {
     btn.addEventListener("click", () => {
       const key = btn.dataset.copyLine;
       const d = data[key];
-      const lines = [...d.rows.map((r) => String(r.rounded)), String(d.totalRounded)];
+      const rowLines = d.rows.map((r) => String(r.rounded));
+      const lines = d.totalPosition === "top" ? [String(d.totalRounded), ...rowLines] : [...rowLines, String(d.totalRounded)];
       copyToClipboard(lines.join("\n"));
     });
   });
@@ -2969,6 +3150,7 @@ async function generateFullReport(dateStr, invalidPct) {
       customerCount: rd.customerCount,
       perRep,
       invalidPct: invalidPct[lineKey] || "",
+      totalPosition: rd.totalPosition || "bottom",
     };
   }
   lastFullReportContext = { dateStr, results };
@@ -3088,26 +3270,28 @@ async function drawReportCanvas(data, S) {
   y += rowH.header;
 
   // ---- one data row per product group ----
-  for (const r of data.rows) {
-    const todayDisplay = r.sellByUnit ? `${fmt(r.todaySale)} قوطی` : fmt(r.todaySale);
-    const valuesByKey = {
-      product: r.name,
-      target: r.target != null ? fmt(r.target) : "—",
-      today: todayDisplay,
-      cumulative: fmt(r.cumulative),
-      remaining: r.remaining != null ? fmt(r.remaining) : "—",
-    };
-    S.columnOrder.forEach((key) => {
-      const b = colBoundsByKey[key];
-      cell(b.x0, b.x1, y, y + rowH.data, colBg(key, S.dataRowBg));
-      const color = key === "remaining" ? (r.remaining == null ? S.dataRowText : r.remaining < 0 ? S.remainingNegativeText : S.remainingPositiveText) : S.dataRowText;
-      text(valuesByKey[key], b, y + rowH.data / 2, S.bodySize, color, S.columnBold[key], S.bodyFontFamily, S.columnAlign[key], key !== "product");
-    });
-    y += rowH.data;
+  function drawDataRows() {
+    for (const r of data.rows) {
+      const todayDisplay = r.sellByUnit ? `${fmt(r.todaySale)} قوطی` : fmt(r.todaySale);
+      const valuesByKey = {
+        product: r.name,
+        target: r.target != null ? fmt(r.target) : "—",
+        today: todayDisplay,
+        cumulative: fmt(r.cumulative),
+        remaining: r.remaining != null ? fmt(r.remaining) : "—",
+      };
+      S.columnOrder.forEach((key) => {
+        const b = colBoundsByKey[key];
+        cell(b.x0, b.x1, y, y + rowH.data, colBg(key, S.dataRowBg));
+        const color = key === "remaining" ? (r.remaining == null ? S.dataRowText : r.remaining < 0 ? S.remainingNegativeText : S.remainingPositiveText) : S.dataRowText;
+        text(valuesByKey[key], b, y + rowH.data / 2, S.bodySize, color, S.columnBold[key], S.bodyFontFamily, S.columnAlign[key], key !== "product");
+      });
+      y += rowH.data;
+    }
   }
 
   // ---- total row ----
-  {
+  function drawTotalRow() {
     const valuesByKey = {
       product: "کل محصولات",
       target: fmt(data.targetTotal),
@@ -3122,6 +3306,14 @@ async function drawReportCanvas(data, S) {
       text(valuesByKey[key], b, y + rowH.total / 2, S.bodySize, color, true, S.bodyFontFamily, S.columnAlign[key], key !== "product");
     });
     y += rowH.total;
+  }
+
+  if (data.totalPosition === "top") {
+    drawTotalRow();
+    drawDataRows();
+  } else {
+    drawDataRows();
+    drawTotalRow();
   }
 
   // ---- blank blue spacer bar (matches the sample report exactly) ----
@@ -3366,6 +3558,14 @@ function bindReportsView() {
   $("#btn-single-report").addEventListener("click", handleSingleReport);
   enableFileDragDrop($("#sales-file-drop"), handleSalesFileSelected);
 
+  $("#report-format-select").addEventListener("change", async (e) => {
+    state.activeFormatId = e.target.value;
+    await setSetting("activeFormatId", state.activeFormatId);
+    // اگر گزارشی همین حالا روی صفحه است، بدون نیاز به آپلود دوباره فایل،
+    // با چینش فرمت تازه‌انتخاب‌شده از نو بسازش.
+    if (lastComputedSums) rebuildQuickReportFromCache();
+  });
+
   $("#btn-open-full-report").addEventListener("click", openFullReportModal);
   $("#btn-save-daily-sale").addEventListener("click", handleSaveDailySale);
 }
@@ -3393,6 +3593,8 @@ function bindManagementView() {
       handleAddParentGroup();
     }
   });
+
+  $("#btn-add-report-format") && $("#btn-add-report-format").addEventListener("click", handleAddReportFormat);
 
   // product entry tabs
   $all("#product-entry-tabs .tab-btn").forEach((btn) => {
@@ -3556,7 +3758,9 @@ async function init() {
   renderParentGroupsList();
   populateManualGroupSelect();
   renderProductsList();
+  renderReportFormatTabs();
   renderLineGroupCheckboxes();
+  populateReportFormatSelect();
   loadSettingsFormFromState();
   populateSingleReportSelectors();
 

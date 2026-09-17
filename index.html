@@ -206,6 +206,11 @@
           </div>
 
           <div class="stack">
+            <div class="field" style="max-width:260px">
+              <label>قالب گزارش</label>
+              <select id="report-format-select"></select>
+            </div>
+
             <div class="file-drop" id="sales-file-drop">
               <input type="file" id="sales-file-input" accept=".xlsx,.xls" style="display:none" />
               <span class="icon"><svg><use href="#icon-upload-cloud"></use></svg></span>
@@ -425,6 +430,18 @@
 
         <!-- --- تعریف گزارش کلی --- -->
         <div class="mtab-panel" id="mtab-report-def" style="display:none">
+          <div class="card" style="margin-bottom:var(--space-5)">
+            <div class="card-header">
+              <div>
+                <div class="card-title">قالب‌های گزارش</div>
+                <div class="card-subtitle">هر فرمت، چینش و ترتیب گروه‌های خودش را برای هر لاین دارد؛ موقع «تولید گزارش» یکی از این فرمت‌ها انتخاب می‌شود</div>
+              </div>
+              <button class="btn btn-primary" id="btn-add-report-format">
+                <span class="icon"><svg><use href="#icon-plus"></use></svg></span> افزودن فرمت
+              </button>
+            </div>
+            <div id="report-format-tabs-slot"></div>
+          </div>
           <div class="grid-2">
             <div class="card">
               <div class="card-header">
