@@ -275,11 +275,18 @@
           <div class="card-header">
             <div>
               <div class="card-title">گزارش تکی</div>
-              <div class="card-subtitle">مشاهده فروش یک گروه کالا در یک لاین مشخص</div>
+              <div class="card-subtitle">مشاهده فروش یا پوشش یک گروه کالا (یا گروه مادر) در یک لاین مشخص</div>
             </div>
           </div>
 
           <div class="form-grid">
+            <div class="field">
+              <label>نوع گزارش</label>
+              <div class="tabs" id="single-report-type-tabs">
+                <button type="button" class="tab-btn active" data-single-type="sales">فروش</button>
+                <button type="button" class="tab-btn" data-single-type="coverage">پوشش (تعداد مشتری)</button>
+              </div>
+            </div>
             <div class="field">
               <label>لاین</label>
               <select id="single-line-select"></select>

@@ -837,7 +837,7 @@ async function removeGroupFromLineReportItems(groupId) {
     for (const lineKey of ["line1", "line2"]) {
       const before = fmt.lineItems[lineKey].length;
       fmt.lineItems[lineKey] = fmt.lineItems[lineKey].filter(
-        (item) => !(item.type === "group" && item.id === groupId)
+        (item) => !((item.type === "group" || item.type === "coverageGroup") && item.id === groupId)
       );
       if (fmt.lineItems[lineKey].length !== before) changed = true;
     }
@@ -1103,7 +1103,7 @@ async function removeParentFromLineReportItems(parentId) {
     for (const lineKey of ["line1", "line2"]) {
       const before = fmt.lineItems[lineKey].length;
       fmt.lineItems[lineKey] = fmt.lineItems[lineKey].filter(
-        (item) => !(item.type === "parent" && item.id === parentId)
+        (item) => !((item.type === "parent" || item.type === "coverageParent") && item.id === parentId)
       );
       if (fmt.lineItems[lineKey].length !== before) changed = true;
     }
@@ -1367,16 +1367,26 @@ async function handleProductsFileSelected(file) {
 // stored in this array).
 const pendingLineOrder = { line1: [], line2: [] };
 
-function itemKey(type, id) { return (type === "parent" ? "p" : "g") + id; }
+function itemKey(type, id) { return `${type}:${id}`; }
 function parseItemKey(key) {
-  return { type: key[0] === "p" ? "parent" : "group", id: Number(key.slice(1)) };
+  const idx = key.indexOf(":");
+  return { type: key.slice(0, idx), id: Number(key.slice(idx + 1)) };
 }
-/** Resolves an item key to its display name + record, for either type. */
+/** Resolves an item key to its display name + record, for any of the four
+ * item types (group / parent / coverageGroup / coverageParent). */
 function itemFromKey(key) {
   const { type, id } = parseItemKey(key);
   if (type === "parent") {
     const p = parentGroupById(id);
     return p ? { type, id, record: p, name: p.name } : null;
+  }
+  if (type === "coverageGroup") {
+    const g = groupById(id);
+    return g ? { type, id, record: g, name: `پوشش ${g.displayName || g.name}` } : null;
+  }
+  if (type === "coverageParent") {
+    const p = parentGroupById(id);
+    return p ? { type, id, record: p, name: `پوشش ${p.displayName || p.name}` } : null;
   }
   const g = groupById(id);
   return g ? { type, id, record: g, name: g.name } : null;
@@ -1388,7 +1398,11 @@ function initPendingLineOrder(lineKey) {
   // groups can never contribute to a report, so they don't belong here).
   const sellableIds = new Set(state.groups.filter((g) => !g.nonSellable).map((g) => g.id));
   pendingLineOrder[lineKey] = (editingFormat().lineItems[lineKey] || [])
-    .filter((item) => (item.type === "group" ? sellableIds.has(item.id) : !!parentGroupById(item.id)))
+    .filter((item) => {
+      if (item.type === "group" || item.type === "coverageGroup") return sellableIds.has(item.id);
+      if (item.type === "parent" || item.type === "coverageParent") return !!parentGroupById(item.id);
+      return false;
+    })
     .map((item) => itemKey(item.type, item.id));
 }
 
@@ -1518,6 +1532,8 @@ function renderLineOrderList(lineKey, globalSorted, parentSorted) {
   const selectedItems = selectedKeys.map((key) => itemFromKey(key)).filter(Boolean);
   const unselectedGroups = globalSorted.filter((g) => !selectedSet.has(itemKey("group", g.id)));
   const unselectedParents = parentSorted.filter((p) => !selectedSet.has(itemKey("parent", p.id)));
+  const unselectedCoverageGroups = globalSorted.filter((g) => !selectedSet.has(itemKey("coverageGroup", g.id)));
+  const unselectedCoverageParents = parentSorted.filter((p) => !selectedSet.has(itemKey("coverageParent", p.id)));
 
   const totalPos = editingFormat().totalPosition;
   const totalRowHtml = `
@@ -1529,14 +1545,22 @@ function renderLineOrderList(lineKey, globalSorted, parentSorted) {
     ? `<div class="order-list" data-line-order-list="${lineKey}">${totalPos === "top" ? totalRowHtml : ""}${selectedItems
         .map((it, idx) => {
           const isParent = it.type === "parent";
-          const badge = isParent ? `<span class="badge badge-neutral">گروه مادر</span>` : "";
+          const isCoverage = it.type === "coverageGroup" || it.type === "coverageParent";
+          const badge = isCoverage
+            ? `<span class="badge badge-neutral">پوشش</span>`
+            : isParent
+            ? `<span class="badge badge-neutral">گروه مادر</span>`
+            : "";
+          const nameInput = isCoverage
+            ? ""
+            : `<input type="text" class="group-display-name-input" data-item-key="${itemKey(it.type, it.id)}" value="${escapeHtml(it.record.displayName || "")}" placeholder="نام نمایشی در گزارش (اختیاری)" style="width:180px" />`;
           return `
           <div class="order-item order-item-wrap" draggable="true" data-line="${lineKey}" data-item-key="${itemKey(it.type, it.id)}">
             <span class="drag-handle"><svg width="16" height="16"><use href="#icon-grip"></use></svg></span>
             <input type="checkbox" data-line-toggle="${lineKey}" data-item-key="${itemKey(it.type, it.id)}" checked />
             <span class="name">${escapeHtml(it.name)}</span>
             ${badge}
-            <input type="text" class="group-display-name-input" data-item-key="${itemKey(it.type, it.id)}" value="${escapeHtml(it.record.displayName || "")}" placeholder="نام نمایشی در گزارش (اختیاری)" style="width:180px" />
+            ${nameInput}
             <div class="move-btns">
               <button class="btn btn-icon btn-sm btn-secondary" data-line-move="up" data-line="${lineKey}" data-item-key="${itemKey(it.type, it.id)}" ${idx === 0 ? "disabled" : ""}><svg width="14" height="14"><use href="#icon-chevron-up"></use></svg></button>
               <button class="btn btn-icon btn-sm btn-secondary" data-line-move="down" data-line="${lineKey}" data-item-key="${itemKey(it.type, it.id)}" ${idx === selectedItems.length - 1 ? "disabled" : ""}><svg width="14" height="14"><use href="#icon-chevron-down"></use></svg></button>
@@ -1548,13 +1572,13 @@ function renderLineOrderList(lineKey, globalSorted, parentSorted) {
     : `<div class="field-hint" style="margin-bottom:var(--space-3)">هنوز گروهی برای این لاین انتخاب نشده است</div>`;
 
   const unselectedHtml = unselectedGroups.length || unselectedParents.length
-    ? `<div class="card-section-label" style="margin-top:var(--space-4)">سایر گروه‌ها</div>
+    ? `<div class="card-section-label" style="margin-top:var(--space-4)">سایر گروه‌ها (فروش)</div>
        ${unselectedGroups
          .map(
            (g) => `
         <div class="checkbox-row">
-          <input type="checkbox" id="${lineKey}-chk-g${g.id}" data-line-toggle="${lineKey}" data-item-key="g${g.id}" />
-          <label for="${lineKey}-chk-g${g.id}">${escapeHtml(g.name)}</label>
+          <input type="checkbox" id="${lineKey}-chk-group-${g.id}" data-line-toggle="${lineKey}" data-item-key="${itemKey("group", g.id)}" />
+          <label for="${lineKey}-chk-group-${g.id}">${escapeHtml(g.name)}</label>
         </div>`
          )
          .join("")}
@@ -1562,17 +1586,40 @@ function renderLineOrderList(lineKey, globalSorted, parentSorted) {
          .map(
            (p) => `
         <div class="checkbox-row">
-          <input type="checkbox" id="${lineKey}-chk-p${p.id}" data-line-toggle="${lineKey}" data-item-key="p${p.id}" />
-          <label for="${lineKey}-chk-p${p.id}">${escapeHtml(p.name)} <span class="badge badge-neutral">گروه مادر</span></label>
+          <input type="checkbox" id="${lineKey}-chk-parent-${p.id}" data-line-toggle="${lineKey}" data-item-key="${itemKey("parent", p.id)}" />
+          <label for="${lineKey}-chk-parent-${p.id}">${escapeHtml(p.name)} <span class="badge badge-neutral">گروه مادر</span></label>
+        </div>`
+         )
+         .join("")}`
+    : "";
+
+  const unselectedCoverageHtml = unselectedCoverageGroups.length || unselectedCoverageParents.length
+    ? `<div class="card-section-label" style="margin-top:var(--space-4)">ردیف‌های پوشش (تعداد مشتری یکتا)</div>
+       ${unselectedCoverageGroups
+         .map(
+           (g) => `
+        <div class="checkbox-row">
+          <input type="checkbox" id="${lineKey}-chk-covg-${g.id}" data-line-toggle="${lineKey}" data-item-key="${itemKey("coverageGroup", g.id)}" />
+          <label for="${lineKey}-chk-covg-${g.id}">پوشش ${escapeHtml(g.name)}</label>
+        </div>`
+         )
+         .join("")}
+       ${unselectedCoverageParents
+         .map(
+           (p) => `
+        <div class="checkbox-row">
+          <input type="checkbox" id="${lineKey}-chk-covp-${p.id}" data-line-toggle="${lineKey}" data-item-key="${itemKey("coverageParent", p.id)}" />
+          <label for="${lineKey}-chk-covp-${p.id}">پوشش ${escapeHtml(p.name)} <span class="badge badge-neutral">گروه مادر</span></label>
         </div>`
          )
          .join("")}`
     : "";
 
   slot.innerHTML = `
-    <div class="field-hint" style="margin-bottom:var(--space-3)">با دستگیره ⠿ یا دکمه‌های بالا/پایین ترتیب نمایش گروه‌ها (و گروه‌های مادر) در گزارش این لاین را تعیین کنید. موقعیت ردیف «مجموع» را از تنظیمات فرمت (بالای این کارت) عوض کنید. یک گروه و گروه مادرش را می‌توان هم‌زمان انتخاب کرد.</div>
+    <div class="field-hint" style="margin-bottom:var(--space-3)">با دستگیره ⠿ یا دکمه‌های بالا/پایین ترتیب نمایش گروه‌ها (و گروه‌های مادر) در گزارش این لاین را تعیین کنید. موقعیت ردیف «مجموع» را از تنظیمات فرمت (بالای این کارت) عوض کنید. یک گروه و گروه مادرش را می‌توان هم‌زمان انتخاب کرد. ردیف «پوشش» تعداد مشتریان یکتای همان گروه/گروه مادر را نشان می‌دهد، نه فروش، و در «مجموع» حساب نمی‌شود.</div>
     ${selectedHtml}
-    ${unselectedHtml}`;
+    ${unselectedHtml}
+    ${unselectedCoverageHtml}`;
 
   // toggle include/exclude
   $all(`[data-line-toggle="${lineKey}"]`, slot).forEach((chk) => {
@@ -1931,6 +1978,7 @@ async function handleBaselineFileSelected(lineKey, file) {
     const built = buildLineReportRows(
       lineResult.groupSumsDisplay,
       lineResult.groupSumsCartonEquivalent,
+      lineResult.groupCustomers,
       (state.lineGroups[lineKey] || []).map((id) => ({ type: "group", id }))
     );
 
@@ -2724,8 +2772,8 @@ function validateColumnsExist(range, columnMap) {
  */
 function computeSalesReport(rows, columnMap, lines, productMap, groupsById) {
   const result = {
-    line1: { groupSumsDisplay: {}, groupSumsCartonEquivalent: {}, customers: new Set() },
-    line2: { groupSumsDisplay: {}, groupSumsCartonEquivalent: {}, customers: new Set() },
+    line1: { groupSumsDisplay: {}, groupSumsCartonEquivalent: {}, customers: new Set(), groupCustomers: {} },
+    line2: { groupSumsDisplay: {}, groupSumsCartonEquivalent: {}, customers: new Set(), groupCustomers: {} },
   };
   const undefinedCodes = new Set();
 
@@ -2775,6 +2823,10 @@ function computeSalesReport(rows, columnMap, lines, productMap, groupsById) {
     const g = product.group;
     result[lineKey].groupSumsDisplay[g] = (result[lineKey].groupSumsDisplay[g] || 0) + displaySales;
     result[lineKey].groupSumsCartonEquivalent[g] = (result[lineKey].groupSumsCartonEquivalent[g] || 0) + cartonEquivalentSales;
+    if (customerVal) {
+      if (!result[lineKey].groupCustomers[g]) result[lineKey].groupCustomers[g] = new Set();
+      result[lineKey].groupCustomers[g].add(customerVal);
+    }
   }
 
   return { ...result, undefinedCodes };
@@ -2804,7 +2856,7 @@ function computeSalesReport(rows, columnMap, lines, productMap, groupsById) {
  * either sum to begin with (computeSalesReport already excludes them).
  * "مجموع" is always rendered as the final row by the caller.
  */
-function buildLineReportRows(groupSumsDisplay, groupSumsCartonEquivalent, items) {
+function buildLineReportRows(groupSumsDisplay, groupSumsCartonEquivalent, groupCustomers, items) {
   const rows = items
     .map((item) => {
       if (item.type === "parent") {
@@ -2817,6 +2869,24 @@ function buildLineReportRows(groupSumsDisplay, groupSumsCartonEquivalent, items)
         if (!consistent) return null; // safety net — should not happen, prevented at definition time
         const exact = children.reduce((sum, c) => sum + (groupSumsDisplay[c.id] || 0), 0);
         return { parentId: p.id, name: p.displayName || p.name, exact, rounded: Math.round(exact), sellByUnit };
+      }
+      if (item.type === "coverageGroup") {
+        // «پوشش» یک گروه واقعی: تعداد مشتریان یکتایی که از این گروه خرید کرده‌اند
+        const g = groupById(item.id);
+        if (!g) return null;
+        const count = (groupCustomers[g.id] || new Set()).size;
+        return { coverageOfGroupId: g.id, name: `پوشش ${g.displayName || g.name}`, exact: count, rounded: count, isCoverage: true };
+      }
+      if (item.type === "coverageParent") {
+        // «پوشش» یک گروه مادر: تعداد مشتریانی که حداقل از یکی از زیرگروه‌هایش
+        // خرید کرده‌اند — اتحاد (union)، نه جمع، تا مشتری مشترک دوبار شمرده نشود
+        const p = parentGroupById(item.id);
+        if (!p) return null;
+        const children = (p.childGroupIds || []).map((cid) => groupById(cid)).filter(Boolean);
+        if (!children.length) return null;
+        const union = new Set();
+        children.forEach((c) => (groupCustomers[c.id] || new Set()).forEach((v) => union.add(v)));
+        return { coverageOfParentId: p.id, name: `پوشش ${p.displayName || p.name}`, exact: union.size, rounded: union.size, isCoverage: true };
       }
       const g = groupById(item.id);
       if (!g) return null;
@@ -2932,8 +3002,8 @@ async function handleGenerateReport() {
   );
 
   lastComputedSums = {
-    line1: { groupSumsDisplay: line1.groupSumsDisplay, groupSumsCartonEquivalent: line1.groupSumsCartonEquivalent, customerCount: line1.customers.size },
-    line2: { groupSumsDisplay: line2.groupSumsDisplay, groupSumsCartonEquivalent: line2.groupSumsCartonEquivalent, customerCount: line2.customers.size },
+    line1: { groupSumsDisplay: line1.groupSumsDisplay, groupSumsCartonEquivalent: line1.groupSumsCartonEquivalent, groupCustomers: line1.groupCustomers, customerCount: line1.customers.size },
+    line2: { groupSumsDisplay: line2.groupSumsDisplay, groupSumsCartonEquivalent: line2.groupSumsCartonEquivalent, groupCustomers: line2.groupCustomers, customerCount: line2.customers.size },
   };
   $("#report-loading").style.display = "none";
   rebuildQuickReportFromCache();
@@ -2969,8 +3039,8 @@ async function handleGenerateReport() {
 function rebuildQuickReportFromCache() {
   if (!lastComputedSums) return;
   const fmt = activeFormat();
-  const r1 = buildLineReportRows(lastComputedSums.line1.groupSumsDisplay, lastComputedSums.line1.groupSumsCartonEquivalent, fmt.lineItems.line1);
-  const r2 = buildLineReportRows(lastComputedSums.line2.groupSumsDisplay, lastComputedSums.line2.groupSumsCartonEquivalent, fmt.lineItems.line2);
+  const r1 = buildLineReportRows(lastComputedSums.line1.groupSumsDisplay, lastComputedSums.line1.groupSumsCartonEquivalent, lastComputedSums.line1.groupCustomers, fmt.lineItems.line1);
+  const r2 = buildLineReportRows(lastComputedSums.line2.groupSumsDisplay, lastComputedSums.line2.groupSumsCartonEquivalent, lastComputedSums.line2.groupCustomers, fmt.lineItems.line2);
   lastReportData = {
     line1: { ...r1, customerCount: lastComputedSums.line1.customerCount, totalPosition: fmt.totalPosition },
     line2: { ...r2, customerCount: lastComputedSums.line2.customerCount, totalPosition: fmt.totalPosition },
@@ -2982,8 +3052,13 @@ function renderLineReportCard(lineKey, lineLabel, dotClass, data) {
   const rowsHtml = data.rows.length
     ? data.rows
         .map((r) => {
-          const displayValue = r.sellByUnit ? `${formatNumber(r.rounded)} قوطی` : formatNumber(r.rounded);
-          return `<tr class="${r.rounded === 0 ? "table-row-zero" : ""}"><td>${escapeHtml(r.name)}</td><td class="num">${displayValue}</td></tr>`;
+          const displayValue = r.isCoverage
+            ? `${formatNumber(r.rounded)} نفر`
+            : r.sellByUnit
+            ? `${formatNumber(r.rounded)} قوطی`
+            : formatNumber(r.rounded);
+          const rowClass = r.isCoverage ? "table-row-coverage" : r.rounded === 0 ? "table-row-zero" : "";
+          return `<tr class="${rowClass}"><td>${escapeHtml(r.name)}</td><td class="num">${displayValue}</td></tr>`;
         })
         .join("")
     : `<tr><td colspan="2" style="text-align:center;color:var(--color-text-faint)">هیچ گروهی برای نمایش در این لاین تعریف نشده است</td></tr>`;
@@ -3461,15 +3536,23 @@ async function handleSaveDailySale() {
 }
 
 /* ----- گزارش تکی ----- */
+let singleReportType = "sales"; // 'sales' | 'coverage' — گزارش تکی mode
+
 function populateSingleReportSelectors() {
   const lineSel = $("#single-line-select");
   const groupSel = $("#single-group-select");
   if (!lineSel || !groupSel) return;
   lineSel.innerHTML = `<option value="line1">لاین یک</option><option value="line2">لاین دو</option>`;
-  const sorted = [...state.groups].filter((g) => !g.nonSellable).sort((a, b) => a.order - b.order);
-  groupSel.innerHTML = sorted.length
-    ? sorted.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("")
-    : `<option value="">— گروهی تعریف نشده —</option>`;
+  const sortedGroups = [...state.groups].filter((g) => !g.nonSellable).sort((a, b) => a.order - b.order);
+  const groupOptions = sortedGroups.map((g) => `<option value="${itemKey("group", g.id)}">${escapeHtml(g.name)}</option>`);
+  // پوشش برای گروه مادر هم معنا دارد (برخلاف فروش، که به یکسان بودن «فروش
+  // به قوطی» زیرگروه‌ها نیاز دارد و گزارش تکی فعلاً فقط گروه واقعی را
+  // پشتیبانی می‌کند) — پس گزینه‌های گروه مادر را فقط در حالت پوشش نشان می‌دهیم.
+  const parentOptions = singleReportType === "coverage"
+    ? [...state.parentGroups].sort((a, b) => a.order - b.order).map((p) => `<option value="${itemKey("parent", p.id)}">${escapeHtml(p.name)} (گروه مادر)</option>`)
+    : [];
+  const allOptions = [...groupOptions, ...parentOptions];
+  groupSel.innerHTML = allOptions.length ? allOptions.join("") : `<option value="">— گروهی تعریف نشده —</option>`;
 }
 
 function handleSingleReport() {
@@ -3486,18 +3569,46 @@ function handleSingleReport() {
     return;
   }
   const lineKey = $("#single-line-select").value;
-  const groupId = Number($("#single-group-select").value);
-  const group = groupById(groupId);
-  if (!group) {
-    showToast("ابتدا حداقل یک گروه کالا تعریف کنید", "error");
-    return;
-  }
+  const { type: selType, id: selId } = parseItemKey($("#single-group-select").value || "group:0");
 
   const productMap = new Map(state.products.map((p) => [p.code, p]));
   const groupsById = new Map(state.groups.map((g) => [g.id, g]));
   const { line1, line2 } = computeSalesReport(currentSalesRows.rows, state.columnMap, state.lines, productMap, groupsById);
   const target = lineKey === "line1" ? line1 : line2;
-  const exact = target.groupSumsDisplay[groupId] || 0;
+
+  if (singleReportType === "coverage") {
+    let name, count;
+    if (selType === "parent") {
+      const p = parentGroupById(selId);
+      if (!p) { showToast("ابتدا حداقل یک گروه کالا یا گروه مادر تعریف کنید", "error"); return; }
+      const children = (p.childGroupIds || []).map((cid) => groupById(cid)).filter(Boolean);
+      const union = new Set();
+      children.forEach((c) => (target.groupCustomers[c.id] || new Set()).forEach((v) => union.add(v)));
+      name = p.name;
+      count = union.size;
+    } else {
+      const g = groupById(selId);
+      if (!g) { showToast("ابتدا حداقل یک گروه کالا تعریف کنید", "error"); return; }
+      name = g.name;
+      count = (target.groupCustomers[selId] || new Set()).size;
+    }
+    out.innerHTML = `
+      <div class="card" style="background:var(--color-surface-alt)">
+        <div class="row-between">
+          <span>لاین: <strong>${lineKey === "line1" ? "لاین یک" : "لاین دو"}</strong></span>
+          <span>پوشش: <strong>${escapeHtml(name)}</strong></span>
+          <span>تعداد مشتری: <strong class="num">${formatNumber(count)} نفر</strong></span>
+        </div>
+      </div>`;
+    return;
+  }
+
+  const group = groupById(selId);
+  if (!group) {
+    showToast("ابتدا حداقل یک گروه کالا تعریف کنید", "error");
+    return;
+  }
+  const exact = target.groupSumsDisplay[selId] || 0;
   const rounded = Math.round(exact);
   const displayValue = group.sellByUnit ? `${formatNumber(rounded)} قوطی` : formatNumber(rounded);
 
@@ -3555,6 +3666,14 @@ function bindReportsView() {
   $("#btn-remove-sales-file").addEventListener("click", handleRemoveSalesFile);
   $("#btn-generate-report").addEventListener("click", handleGenerateReport);
   $("#btn-single-report").addEventListener("click", handleSingleReport);
+  $all("#single-report-type-tabs .tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      singleReportType = btn.dataset.singleType;
+      $all("#single-report-type-tabs .tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      populateSingleReportSelectors();
+      $("#single-report-output").innerHTML = "";
+    });
+  });
   enableFileDragDrop($("#sales-file-drop"), handleSalesFileSelected);
 
   $("#report-format-select").addEventListener("change", async (e) => {

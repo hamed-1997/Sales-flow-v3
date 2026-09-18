@@ -386,6 +386,8 @@ table.data-table td.num, table.data-table th.num { text-align: left; }
 .table-row-total td { font-weight: 700; background: var(--color-accent-100); }
 .table-row-total td.num { color: var(--color-accent-600); }
 .table-row-zero td.num { color: var(--color-text-faint); }
+.table-row-coverage td { font-style: italic; color: var(--color-text-secondary); }
+.table-row-coverage td.num { color: var(--color-accent-600); }
 
 /* ---------- Badges ---------- */
 .badge {
