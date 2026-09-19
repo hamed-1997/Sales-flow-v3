@@ -3133,11 +3133,11 @@ function renderLineReportCard(lineKey, lineLabel, dotClass, data) {
             ? `${formatNumber(r.rounded)} قوطی`
             : formatNumber(r.rounded);
           const rowClass = r.isCoverage ? "table-row-coverage" : r.rounded === 0 ? "table-row-zero" : "";
-          return `<tr class="${rowClass}"><td>${escapeHtml(r.name)}</td><td class="num">${displayValue}</td></tr>`;
+          return `<tr class="${rowClass}"><td class="num">${displayValue}</td><td>${escapeHtml(r.name)}</td></tr>`;
         })
         .join("")
     : `<tr><td colspan="2" style="text-align:center;color:var(--color-text-faint)">هیچ گروهی برای نمایش در این لاین تعریف نشده است</td></tr>`;
-  const totalRowHtml = `<tr class="table-row-total"><td>مجموع</td><td class="num">${formatNumber(data.totalRounded)}</td></tr>`;
+  const totalRowHtml = `<tr class="table-row-total"><td class="num">${formatNumber(data.totalRounded)}</td><td>مجموع</td></tr>`;
   const bodyHtml = data.totalPosition === "top" ? totalRowHtml + rowsHtml : rowsHtml + totalRowHtml;
 
   return `
@@ -3148,7 +3148,7 @@ function renderLineReportCard(lineKey, lineLabel, dotClass, data) {
       </div>
       <div class="table-wrap">
         <table class="data-table quick-report">
-          <thead><tr><th>گروه کالا</th><th class="num">فروش</th></tr></thead>
+          <thead><tr><th class="num">فروش</th><th>گروه کالا</th></tr></thead>
           <tbody>
             ${bodyHtml}
           </tbody>
