@@ -452,6 +452,7 @@ const state = {
   reportFormats: [],
   editingFormatId: null, // کدام فرمت الان در «تعریف گزارش کلی» ویرایش می‌شود
   activeFormatId: null,  // کدام فرمت موقع «تولید گزارش» استفاده می‌شود
+  stylingFormatId: null, // کدام فرمت الان در مودال «تنظیمات خروجی» ویرایش می‌شود
   fontScale: 1.1,
   salesWorkbookSheet: null, // current parsed worksheet (for report)
   salesFileLoaded: false,
@@ -464,7 +465,6 @@ const state = {
     line1: { date: "", amounts: {}, total: 0 },
     line2: { date: "", amounts: {}, total: 0 },
   },
-  reportStyle: { ...DEFAULT_REPORT_STYLE },
   appLockPinHash: "",
   lastBackupAt: "",
 };
@@ -480,6 +480,11 @@ async function hydrateState() {
   state.fontScale = await getSetting("fontScale", 1.1);
 
   state.parentGroups = (await Store.getAll("parentGroups")).sort((a, b) => a.order - b.order);
+  // تنظیمات ظاهر خروجی («گزارش کامل روز») قبلاً سراسری بود؛ حالا هر فرمت
+  // مال خودش را دارد. این مقدار قدیمی فقط برای مهاجرتِ فرمت‌هایی که هنوز
+  // reportStyle خودشان را ندارند به کار می‌رود (نقطه شروع مشترک، تا چیزی
+  // از دست نرود)، و دیگر روی state ذخیره نمی‌شود.
+  const legacyGlobalStyle = sanitizeReportStyle(await getSetting("reportStyle", {}));
   const rawFormats = await getSetting("reportFormats", null);
   if (Array.isArray(rawFormats) && rawFormats.length) {
     state.reportFormats = rawFormats.map((f) => ({
@@ -487,6 +492,8 @@ async function hydrateState() {
       name: f.name || "فرمت",
       lineItems: { line1: f.lineItems?.line1 || [], line2: f.lineItems?.line2 || [] },
       totalPosition: f.totalPosition === "top" ? "top" : "bottom",
+      reportStyle: sanitizeReportStyle(f.reportStyle || legacyGlobalStyle),
+      fullReportEnabled: f.fullReportEnabled !== false,
     }));
   } else {
     // migrating from پیش از پشتیبانی چند فرمت: یا lineReportItems قدیمی
@@ -500,8 +507,8 @@ async function hydrateState() {
           line2: (state.lineGroups.line2 || []).map((id) => ({ type: "group", id })),
         };
     state.reportFormats = [
-      { id: "fmt-1", name: "فرمت ۱", lineItems: { line1: [...fmt1Items.line1], line2: [...fmt1Items.line2] }, totalPosition: "bottom" },
-      { id: "fmt-2", name: "فرمت ۲", lineItems: { line1: [...fmt1Items.line1], line2: [...fmt1Items.line2] }, totalPosition: "bottom" },
+      { id: "fmt-1", name: "فرمت ۱", lineItems: { line1: [...fmt1Items.line1], line2: [...fmt1Items.line2] }, totalPosition: "bottom", reportStyle: { ...legacyGlobalStyle }, fullReportEnabled: true },
+      { id: "fmt-2", name: "فرمت ۲", lineItems: { line1: [...fmt1Items.line1], line2: [...fmt1Items.line2] }, totalPosition: "bottom", reportStyle: { ...legacyGlobalStyle }, fullReportEnabled: true },
     ];
     await setSetting("reportFormats", state.reportFormats);
   }
@@ -509,6 +516,7 @@ async function hydrateState() {
   if (!state.reportFormats.some((f) => f.id === state.editingFormatId)) state.editingFormatId = state.reportFormats[0].id;
   state.activeFormatId = await getSetting("activeFormatId", state.reportFormats[0].id);
   if (!state.reportFormats.some((f) => f.id === state.activeFormatId)) state.activeFormatId = state.reportFormats[0].id;
+  state.stylingFormatId = state.editingFormatId;
 
   state.monthlyTargets = await getSetting("monthlyTargets", state.monthlyTargets);
   state.targetTotals = await getSetting("targetTotals", state.targetTotals);
@@ -518,7 +526,6 @@ async function hydrateState() {
     line1: { date: rawBaseline?.line1?.date || "", amounts: rawBaseline?.line1?.amounts || {}, total: rawBaseline?.line1?.total ?? rawBaseline?.line1?.amount ?? 0 },
     line2: { date: rawBaseline?.line2?.date || "", amounts: rawBaseline?.line2?.amounts || {}, total: rawBaseline?.line2?.total ?? rawBaseline?.line2?.amount ?? 0 },
   };
-  state.reportStyle = sanitizeReportStyle(await getSetting("reportStyle", {}));
   state.appLockPinHash = await getSetting("appLockPinHash", "");
   state.lastBackupAt = await getSetting("lastBackupAt", "");
 }
@@ -527,6 +534,7 @@ async function hydrateState() {
 function getFormat(id) { return state.reportFormats.find((f) => f.id === id) || state.reportFormats[0]; }
 function editingFormat() { return getFormat(state.editingFormatId); }
 function activeFormat() { return getFormat(state.activeFormatId); }
+function stylingFormat() { return getFormat(state.stylingFormatId); }
 
 function groupById(id) { return state.groups.find((g) => g.id === id); }
 function groupByName(name) { return state.groups.find((g) => g.name === name); }
@@ -1435,6 +1443,12 @@ function renderReportFormatTabs() {
           <button class="tab-btn ${current.totalPosition !== "top" ? "active" : ""}" data-total-pos="bottom">انتهای گزارش</button>
         </div>
       </div>
+      <div class="field" style="margin:0">
+        <label class="checkbox-label"><input type="checkbox" id="report-format-full-enabled" ${current.fullReportEnabled !== false ? "checked" : ""} /> گزارش کامل روز برای این فرمت فعال باشد</label>
+      </div>
+      <button class="btn btn-secondary btn-sm" id="btn-open-report-style-modal" style="align-self:flex-end">
+        <svg width="15" height="15"><use href="#icon-palette"></use></svg> تنظیمات خروجی (ظاهر گزارش کامل)
+      </button>
       ${state.reportFormats.length > 1 ? `<button class="btn btn-secondary btn-sm" id="btn-delete-report-format" style="align-self:flex-end"><svg width="15" height="15"><use href="#icon-trash"></use></svg> حذف این فرمت</button>` : ""}
     </div>`;
 
@@ -1486,11 +1500,26 @@ function renderReportFormatTabs() {
       showToast("فرمت حذف شد", "success");
     });
   }
+
+  $("#report-format-full-enabled", slot).addEventListener("change", async (e) => {
+    current.fullReportEnabled = e.target.checked;
+    await setSetting("reportFormats", state.reportFormats);
+    if (state.activeFormatId === current.id) updateFullReportAvailability();
+  });
+
+  $("#btn-open-report-style-modal", slot).addEventListener("click", () => openReportStyleModal(current.id));
 }
 
 async function handleAddReportFormat() {
   const n = state.reportFormats.length + 1;
-  const newFmt = { id: `fmt-${Date.now()}`, name: `فرمت ${toPersianDigits(n)}`, lineItems: { line1: [], line2: [] }, totalPosition: "bottom" };
+  const newFmt = {
+    id: `fmt-${Date.now()}`,
+    name: `فرمت ${toPersianDigits(n)}`,
+    lineItems: { line1: [], line2: [] },
+    totalPosition: "bottom",
+    reportStyle: sanitizeReportStyle({ ...editingFormat().reportStyle }),
+    fullReportEnabled: true,
+  };
   state.reportFormats.push(newFmt);
   state.editingFormatId = newFmt.id;
   await setSetting("reportFormats", state.reportFormats);
@@ -1499,6 +1528,53 @@ async function handleAddReportFormat() {
   renderLineGroupCheckboxes();
   populateReportFormatSelect();
   showToast("فرمت جدید اضافه شد — حالا گروه‌های هر لاین را برایش انتخاب کنید", "success");
+}
+
+/** Opens the «تنظیمات خروجی» modal — the full output-appearance editor
+ * (fonts/colors/columns/rows + live preview), scoped to one فرمت. This is
+ * the same form that used to live globally under تنظیمات; it now reads and
+ * writes stylingFormat().reportStyle instead of a single shared style. */
+function openReportStyleModal(formatId) {
+  state.stylingFormatId = formatId;
+  const fmt = stylingFormat();
+  const region = $("#modal-region");
+  const overlay = document.createElement("div");
+  overlay.className = "modal-overlay";
+  overlay.innerHTML = `
+    <div class="modal" style="max-width:900px; max-height:90vh; overflow-y:auto">
+      <div class="modal-title">تنظیمات خروجی — ${escapeHtml(fmt.name)}</div>
+      <div class="card-subtitle" style="margin-bottom:var(--space-4)">فونت، رنگ‌ها و سایزهای دقیق تصویر «گزارش کامل روز» این فرمت</div>
+      <div id="report-style-form-slot"></div>
+      <div class="modal-actions" style="margin-top:var(--space-5); flex-wrap:wrap">
+        <button class="btn btn-secondary" id="report-style-modal-close">بستن</button>
+        <button class="btn btn-secondary" id="btn-reset-report-style">
+          <svg width="15" height="15"><use href="#icon-trash"></use></svg> بازگشت به حالت پیش‌فرض
+        </button>
+        <button class="btn btn-primary" id="btn-save-report-style">
+          <svg width="15" height="15"><use href="#icon-save"></use></svg> ذخیره ظاهر این فرمت
+        </button>
+      </div>
+    </div>`;
+  region.appendChild(overlay);
+  renderReportStyleForm();
+  $("#report-style-modal-close", overlay).addEventListener("click", () => overlay.remove());
+  $("#btn-save-report-style", overlay).addEventListener("click", handleSaveReportStyle);
+  $("#btn-reset-report-style", overlay).addEventListener("click", handleResetReportStyle);
+}
+
+/** Shows/hides the «نمایش گزارش کامل روز» trigger based on whether the
+ * currently-active فرمت has گزارش کامل enabled. */
+function updateFullReportAvailability() {
+  const row = $("#full-report-trigger-row");
+  const hint = $("#full-report-disabled-hint");
+  if (!row) return;
+  const enabled = activeFormat().fullReportEnabled !== false;
+  const hasReport = $("#report-output")?.dataset.hasReport === "1";
+  row.style.display = hasReport ? "flex" : "none";
+  if (row.style.display === "flex") {
+    $("#btn-open-full-report").style.display = enabled ? "" : "none";
+    if (hint) hint.style.display = enabled ? "none" : "";
+  }
 }
 
 /** Fills the گزارش‌گیری screen's «قالب گزارش» select with the current list
@@ -2211,7 +2287,7 @@ let pendingFooterOrder = null;
 function renderReportStyleForm() {
   const slot = $("#report-style-form-slot");
   if (!slot) return;
-  const S = state.reportStyle;
+  const S = stylingFormat().reportStyle;
   pendingColumnOrder = [...S.columnOrder];
   pendingFooterOrder = [...S.footerOrder];
   slot.innerHTML = `
@@ -2303,7 +2379,7 @@ function renderReportStyleForm() {
 function renderColumnOrderList() {
   const slot = $("#column-order-slot");
   if (!slot) return;
-  const S = state.reportStyle;
+  const S = stylingFormat().reportStyle;
   slot.innerHTML = `<div class="order-list">${pendingColumnOrder
     .map(
       (key, idx) => `
@@ -2363,7 +2439,7 @@ function renderColumnOrderList() {
 function renderFooterOrderList() {
   const slot = $("#footer-order-slot");
   if (!slot) return;
-  const S = state.reportStyle;
+  const S = stylingFormat().reportStyle;
   slot.innerHTML = `<div class="order-list">${pendingFooterOrder
     .map(
       (key, idx) => `
@@ -2416,23 +2492,23 @@ function renderFooterOrderList() {
  * a full reportStyle object — used both by the live preview and by Save. */
 function collectReportStyleFormValues() {
   const slot = $("#report-style-form-slot");
-  const s = { ...state.reportStyle };
+  const s = { ...stylingFormat().reportStyle };
   $all(".style-input", slot).forEach((input) => {
     const key = input.dataset.styleKey;
     const isNumberField = key.endsWith("Size") || key === "imageWidth" || key === "borderWidth" || key === "dateCellSpan";
-    s[key] = isNumberField ? Number(input.value) || state.reportStyle[key] : input.value;
+    s[key] = isNumberField ? Number(input.value) || stylingFormat().reportStyle[key] : input.value;
   });
   $all(".style-input-bold", slot).forEach((input) => {
     s[input.dataset.styleKey] = input.checked;
   });
 
   s.columnOrder = [...pendingColumnOrder];
-  const columnWeights = { ...state.reportStyle.columnWeights };
-  const columnLabels = { ...state.reportStyle.columnLabels };
-  const columnAlign = { ...state.reportStyle.columnAlign };
-  const columnBold = { ...state.reportStyle.columnBold };
-  const columnBgEnabled = { ...state.reportStyle.columnBgEnabled };
-  const columnBg = { ...state.reportStyle.columnBg };
+  const columnWeights = { ...stylingFormat().reportStyle.columnWeights };
+  const columnLabels = { ...stylingFormat().reportStyle.columnLabels };
+  const columnAlign = { ...stylingFormat().reportStyle.columnAlign };
+  const columnBold = { ...stylingFormat().reportStyle.columnBold };
+  const columnBgEnabled = { ...stylingFormat().reportStyle.columnBgEnabled };
+  const columnBg = { ...stylingFormat().reportStyle.columnBg };
   $all(".style-input-colw", slot).forEach((input) => {
     const v = Number(input.value);
     if (v > 0) columnWeights[input.dataset.colKey] = v;
@@ -2460,8 +2536,8 @@ function collectReportStyleFormValues() {
   s.columnBg = columnBg;
 
   s.footerOrder = [...pendingFooterOrder];
-  const footerWeights = { ...state.reportStyle.footerWeights };
-  const footerLabels = { ...state.reportStyle.footerLabels };
+  const footerWeights = { ...stylingFormat().reportStyle.footerWeights };
+  const footerLabels = { ...stylingFormat().reportStyle.footerLabels };
   $all(".style-input-footw", slot).forEach((input) => {
     const v = Number(input.value);
     if (v > 0) footerWeights[input.dataset.footKey] = v;
@@ -2472,7 +2548,7 @@ function collectReportStyleFormValues() {
   s.footerWeights = footerWeights;
   s.footerLabels = footerLabels;
 
-  const rowHeights = { ...state.reportStyle.rowHeights };
+  const rowHeights = { ...stylingFormat().reportStyle.rowHeights };
   $all(".style-input-rowh", slot).forEach((input) => {
     const k = input.dataset.rowKey;
     const v = Number(input.value);
@@ -2495,16 +2571,16 @@ async function renderReportStylePreview(styleDraft) {
 }
 
 async function handleSaveReportStyle() {
-  state.reportStyle = sanitizeReportStyle(collectReportStyleFormValues());
-  await setSetting("reportStyle", state.reportStyle);
-  showToast("ظاهر گزارش خروجی ذخیره شد", "success");
+  stylingFormat().reportStyle = sanitizeReportStyle(collectReportStyleFormValues());
+  await setSetting("reportFormats", state.reportFormats);
+  showToast("ظاهر گزارش خروجی این فرمت ذخیره شد", "success");
 }
 
 async function handleResetReportStyle() {
-  state.reportStyle = sanitizeReportStyle(DEFAULT_REPORT_STYLE);
-  await setSetting("reportStyle", state.reportStyle);
+  stylingFormat().reportStyle = sanitizeReportStyle(DEFAULT_REPORT_STYLE);
+  await setSetting("reportFormats", state.reportFormats);
   renderReportStyleForm();
-  showToast("ظاهر گزارش به حالت پیش‌فرض بازگشت", "success");
+  showToast("ظاهر گزارش این فرمت به حالت پیش‌فرض بازگشت", "success");
 }
 
 /* ---------------------------------------------------------
@@ -2513,7 +2589,7 @@ async function handleResetReportStyle() {
 async function handleExportBackup() {
   const payload = {
     app: "SalesFlow",
-    backupVersion: 4,
+    backupVersion: 5,
     exportedAt: new Date().toISOString(),
     groups: state.groups,
     products: state.products,
@@ -2526,7 +2602,6 @@ async function handleExportBackup() {
     targetTotals: state.targetTotals,
     sellersCount: state.sellersCount,
     monthBaseline: state.monthBaseline,
-    reportStyle: state.reportStyle,
     salesLog: await Store.getAll("salesLog"),
     // SalesFlow نسخه ۳ — گروه‌های مادر
     parentGroups: state.parentGroups,
@@ -3007,7 +3082,7 @@ async function handleGenerateReport() {
   };
   $("#report-loading").style.display = "none";
   rebuildQuickReportFromCache();
-  $("#full-report-trigger-row").style.display = "flex";
+  updateFullReportAvailability();
   $("#full-report-card").style.display = "none";
   $("#full-report-output").innerHTML = "";
 
@@ -3128,6 +3203,10 @@ async function copyToClipboard(text) {
 function openFullReportModal() {
   if (!lastReportData) {
     showToast("ابتدا گزارش را تولید کنید", "error");
+    return;
+  }
+  if (activeFormat().fullReportEnabled === false) {
+    showToast("گزارش کامل روز برای این فرمت غیرفعال است", "error");
     return;
   }
   const [jy, jm, jd] = todayJalali();
@@ -3265,7 +3344,7 @@ function computeColumnBoundsRTL(weights, canvasWidth) {
  * per product group, a blank spacer bar, total row, footer stats row)
  * directly with the Canvas 2D API — column widths, row heights, per-section
  * fonts/sizes/bold, per-column alignment/bold and every color come from `S`
- * (state.reportStyle, or a live-preview draft of it) — and returns the
+ * (a format's own reportStyle, or a live-preview draft of it) — and returns the
  * finished <canvas>. Pure vector drawing avoids the "tainted canvas"
  * restriction that an SVG/foreignObject round-trip runs into. */
 async function drawReportCanvas(data, S) {
@@ -3413,7 +3492,7 @@ async function drawReportCanvas(data, S) {
 }
 
 async function renderReportToPngDataUrl(data) {
-  const canvas = await drawReportCanvas(data, state.reportStyle);
+  const canvas = await drawReportCanvas(data, activeFormat().reportStyle);
   return canvas.toDataURL("image/png");
 }
 
@@ -3682,6 +3761,7 @@ function bindReportsView() {
     // اگر گزارشی همین حالا روی صفحه است، بدون نیاز به آپلود دوباره فایل،
     // با چینش فرمت تازه‌انتخاب‌شده از نو بسازش.
     if (lastComputedSums) rebuildQuickReportFromCache();
+    updateFullReportAvailability();
   });
 
   $("#btn-open-full-report").addEventListener("click", openFullReportModal);
@@ -3750,8 +3830,6 @@ function bindSettingsView() {
   });
 
   $("#btn-save-sellers").addEventListener("click", handleSaveSellers);
-  $("#btn-save-report-style").addEventListener("click", handleSaveReportStyle);
-  $("#btn-reset-report-style").addEventListener("click", handleResetReportStyle);
 }
 
 /* ---------------------------------------------------------
@@ -3886,7 +3964,6 @@ async function init() {
   loadSellersFormFromState();
   renderBaselineTab();
   renderHistoryTab();
-  renderReportStyleForm();
   renderAppLockForm();
   updateBackupStatusText();
   checkBackupReminder();

@@ -249,6 +249,7 @@
               <button class="btn btn-primary" id="btn-open-full-report">
                 <span class="icon"><svg><use href="#icon-image"></use></svg></span> نمایش گزارش کامل روز
               </button>
+              <span id="full-report-disabled-hint" class="field-hint" style="display:none">گزارش کامل روز برای این فرمت غیرفعال است — از مدیریت > تعریف گزارش کلی فعالش کنید</span>
             </div>
           </div>
         </div>
@@ -651,17 +652,8 @@
           <div class="card-header">
             <div>
               <div class="card-title"><span class="icon"><svg><use href="#icon-palette"></use></svg></span> تنظیمات ظاهری گزارش خروجی</div>
-              <div class="card-subtitle">فونت، رنگ‌ها و سایزهای دقیق دو تصویر گزارش کامل روز</div>
+              <div class="card-subtitle">این تنظیمات حالا برای هر «فرمت گزارش» جداست — از مدیریت > تعریف گزارش کلی، کنار هر فرمت، دکمه «تنظیمات خروجی» را بزنید</div>
             </div>
-          </div>
-          <div id="report-style-form-slot"></div>
-          <div class="row" style="margin-top: var(--space-5); flex-wrap:wrap">
-            <button class="btn btn-primary" id="btn-save-report-style">
-              <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره ظاهر گزارش
-            </button>
-            <button class="btn btn-secondary" id="btn-reset-report-style">
-              <span class="icon"><svg><use href="#icon-trash"></use></svg></span> بازگشت به حالت پیش‌فرض
-            </button>
           </div>
         </div>
 
