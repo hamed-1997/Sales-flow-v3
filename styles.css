@@ -367,8 +367,9 @@ input, select, textarea { font-family: inherit; font-size: var(--font-size-md); 
 table.data-table { width: 100%; border-collapse: collapse; font-size: var(--font-size-md); }
 /* quick-report card table (renderLineReportCard): uses the box's full width
    (safe now that لاین یک/دو sit side by side, so each box is already half
-   the page) with the label column on the left and the value column on the
-   right — the opposite of the default RTL table alignment above */
+   the page). Alignment stays natural RTL: first column (right) = label,
+   last column (left) = value — written generically so it still works
+   however the markup's column order is arranged. */
 table.data-table.quick-report { width: 100%; }
 table.data-table.quick-report td:first-child,
 table.data-table.quick-report th:first-child { text-align: right; }
