@@ -1173,6 +1173,7 @@ function refreshAllGroupDependentUI() {
   populateManualGroupSelect();
   renderLineGroupCheckboxes();
   populateSingleReportSelectors();
+  populateSeparationGroupSelect();
   renderParentGroupsList();
 }
 
@@ -2701,6 +2702,7 @@ async function handleImportBackupFile(file) {
     populateReportFormatSelect();
     loadSettingsFormFromState();
     populateSingleReportSelectors();
+    populateSeparationGroupSelect();
     handleRemoveSalesFile();
     renderTargetsTab();
     renderBaselineTab();
@@ -3020,6 +3022,8 @@ function handleRemoveSalesFile() {
   lastReportData = null;
   lastFullReportContext = null;
   lastComputedSums = null;
+  lastSeparationResult = null;
+  if ($("#sep-output")) $("#sep-output").innerHTML = "";
   $("#sales-file-input").value = "";
   $("#sales-file-status").textContent = "";
   $("#sales-file-drop").classList.remove("has-file");
@@ -3739,12 +3743,217 @@ function enableFileDragDrop(dropEl, onFile) {
   });
 }
 
+/* ---------------------------------------------------------
+   بررسی تفکیک فاکتور — مثلاً «کالاهای روغن باید جدا از بقیه فاکتور شوند»
+   دو مرحله دارد:
+   • قبل از ثبت: هنوز شماره پیش‌فاکتور نیست (ستون خالی یا صفر)، پس فقط
+     بر اساس کد مشتری می‌شود گروه‌بندی کرد.
+   • بعد از ثبت: شماره پیش‌فاکتور هست، پس بر اساس همان گروه‌بندی می‌کنیم؛
+     مشتری‌ای که درست دو فاکتور جدا گرفته مشکوک علامت نمی‌خورد.
+   --------------------------------------------------------- */
+let separationMode = "pre";   // 'pre' | 'post'
+let separationGroupId = null; // آخرین گروه انتخاب‌شده (در تنظیمات ذخیره می‌شود)
+let lastSeparationResult = null;
+
+/** Pure function (no DOM / state access) — easy to test on its own.
+ * Walks the sales rows, buckets them by customer code (mode 'pre', only rows
+ * WITHOUT a real پیش‌فاکتور number) or by پیش‌فاکتور number (mode 'post', only
+ * rows WITH one), and reports every bucket that contains a product of
+ * `targetGroupId` together with at least one product of another group. */
+function findSeparationViolations({ rows, columnMap, productMap, groupsById, targetGroupId, mode, countNonSellableAsOther }) {
+  const buckets = new Map();
+  const undefinedCodes = new Set();
+
+  for (const row of rows) {
+    const invRaw = normalizeStr(row[columnMap.invoice]);
+    const invNum = toPersianSafeNumber(invRaw);
+    // «ثبت‌شده» = شماره دارد و صفر نیست (همان قاعده‌ای که گزارش فروش هم دارد)
+    const registered = invRaw !== "" && invNum !== 0;
+    if (mode === "pre" ? registered : !registered) continue;
+
+    const customer = normalizeStr(row[columnMap.customer]);
+    const key = mode === "pre" ? customer : invRaw;
+    if (!key) continue;
+
+    const code = normalizeStr(row[columnMap.code]);
+    if (!code) continue;
+
+    let bucket = buckets.get(key);
+    if (!bucket) {
+      bucket = { key, customer: "", invoice: mode === "post" ? invRaw : "", targetItems: [], otherItems: [], unknownItems: [] };
+      buckets.set(key, bucket);
+    }
+    if (!bucket.customer && customer) bucket.customer = customer;
+
+    const qty = normalizeStr(row[columnMap.qty]);
+    const product = productMap.get(code);
+    if (!product) {
+      undefinedCodes.add(code);
+      bucket.unknownItems.push({ code, qty });
+      continue;
+    }
+    const group = groupsById.get(product.group);
+    if (group && group.nonSellable && !countNonSellableAsOther) continue;
+
+    if (product.group === targetGroupId) bucket.targetItems.push({ code, qty });
+    else bucket.otherItems.push({ code, qty, groupName: group ? group.name : "" });
+  }
+
+  const all = [...buckets.values()];
+  const withTarget = all.filter((b) => b.targetItems.length);
+  return {
+    totalKeys: all.length,
+    targetKeys: withTarget.length,
+    violations: withTarget.filter((b) => b.otherItems.length),
+    // کالای گروه هدف دارد، کالای دیگرِ مشخصی ندارد، ولی کدِ تعریف‌نشده دارد —
+    // نمی‌شود حکم داد، باید دستی دیده شود
+    needsManual: withTarget.filter((b) => !b.otherItems.length && b.unknownItems.length),
+    undefinedCodes: [...undefinedCodes],
+  };
+}
+
+function populateSeparationGroupSelect() {
+  const sel = $("#sep-group-select");
+  if (!sel) return;
+  const sorted = [...state.groups].sort((a, b) => a.order - b.order);
+  sel.innerHTML = sorted.length
+    ? sorted.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("")
+    : `<option value="">— گروهی تعریف نشده —</option>`;
+  const pick = sorted.find((g) => g.id === separationGroupId) || sorted.find((g) => /روغن/.test(g.name)) || sorted[0];
+  if (pick) sel.value = String(pick.id);
+  updateSeparationHint();
+}
+
+function updateSeparationHint() {
+  const hint = $("#sep-mode-hint");
+  if (!hint) return;
+  hint.textContent = separationMode === "pre"
+    ? "فقط ردیف‌هایی بررسی می‌شوند که هنوز شماره پیش‌فاکتور ندارند (خالی یا صفر). چون شماره‌ای نیست، گروه‌بندی بر اساس کد مشتری است: مشتری‌ای که کالای این گروه و کالای دیگر هم دارد باید موقع صدور، دو فاکتور جدا بگیرد."
+    : "فقط ردیف‌هایی بررسی می‌شوند که شماره پیش‌فاکتور دارند (غیر صفر). گروه‌بندی بر اساس شماره پیش‌فاکتور است، پس مشتری‌ای که درست دو فاکتور جدا گرفته مشکوک علامت نمی‌خورد.";
+}
+
+function handleSeparationCheck() {
+  const out = $("#sep-output");
+  out.innerHTML = "";
+  if (!currentSalesRows) {
+    showToast("لطفاً ابتدا فایل فروش را در بخش «گزارش کلی» انتخاب کنید", "error");
+    return;
+  }
+  const valid = validateColumnsExist(currentSalesRows.range, state.columnMap);
+  if (!valid.ok) { showColumnValidationError(valid.field); return; }
+  const groupId = Number($("#sep-group-select").value);
+  const group = groupById(groupId);
+  if (!group) {
+    showToast("ابتدا حداقل یک گروه کالا تعریف کنید", "error");
+    return;
+  }
+  separationGroupId = groupId;
+  setSetting("separationGroupId", groupId);
+
+  const res = findSeparationViolations({
+    rows: currentSalesRows.rows,
+    columnMap: state.columnMap,
+    productMap: new Map(state.products.map((p) => [p.code, p])),
+    groupsById: new Map(state.groups.map((g) => [g.id, g])),
+    targetGroupId: groupId,
+    mode: separationMode,
+    countNonSellableAsOther: $("#sep-count-nonsellable").checked,
+  });
+  lastSeparationResult = { res, group, mode: separationMode };
+  renderSeparationResult();
+}
+
+/** Turns one bucket into the plain strings used by both the on-screen table
+ * and the copy / Excel export, so the three always agree. */
+function separationRowStrings(b, mode) {
+  const items = (arr, withGroup) =>
+    arr.map((i) => `${i.code}${i.qty !== "" ? ` (${i.qty})` : ""}${withGroup && i.groupName ? ` — ${i.groupName}` : ""}`).join("، ");
+  const target = items(b.targetItems, false);
+  const others = [items(b.otherItems, true), items(b.unknownItems.map((u) => ({ ...u, groupName: "کد تعریف‌نشده" })), true)].filter(Boolean).join("، ");
+  return mode === "pre" ? [b.key, target, others] : [b.invoice, b.customer, target, others];
+}
+
+function renderSeparationResult() {
+  const out = $("#sep-output");
+  if (!lastSeparationResult) { out.innerHTML = ""; return; }
+  const { res, group, mode } = lastSeparationResult;
+  const keyLabel = mode === "pre" ? "مشتری" : "پیش‌فاکتور";
+  const headers = mode === "pre"
+    ? ["کد مشتری", `کالاهای «${group.name}»`, "کالاهای دیگر"]
+    : ["شماره پیش‌فاکتور", "کد مشتری", `کالاهای «${group.name}»`, "کالاهای دیگر"];
+
+  const tableFor = (list) => `
+    <div class="table-wrap" style="max-height:420px">
+      <table class="data-table">
+        <thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
+        <tbody>${list
+          .map((b) => `<tr>${separationRowStrings(b, mode).map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`)
+          .join("")}</tbody>
+      </table>
+    </div>`;
+
+  const summary = `از ${formatNumber(res.totalKeys)} ${keyLabel} بررسی‌شده، ${formatNumber(res.targetKeys)} مورد کالای «${escapeHtml(group.name)}» دارد؛ در ${formatNumber(res.violations.length)} مورد از آن‌ها کالای دیگری هم همراهش است.`;
+
+  let html = `<div class="field-hint" style="margin-bottom:var(--space-3)">${summary}</div>`;
+
+  if (res.violations.length) {
+    html += `<div class="alert alert-warning" style="margin-bottom:var(--space-3)">${icon("alert-triangle")}<span>${formatNumber(res.violations.length)} ${keyLabel} مشکوک است و باید بررسی شود:</span></div>`;
+    html += tableFor(res.violations);
+  } else {
+    html += `<div class="card" style="background:var(--color-surface-alt)"><strong style="color:var(--color-success-600, #16a34a)">موردی پیدا نشد</strong> — هیچ ${keyLabel}ی کالای «${escapeHtml(group.name)}» را همراه کالای دیگر ندارد.</div>`;
+  }
+
+  if (res.needsManual.length) {
+    html += `<div class="alert alert-warning" style="margin:var(--space-4) 0 var(--space-3)">${icon("alert-triangle")}<span>${formatNumber(res.needsManual.length)} مورد کالای «${escapeHtml(group.name)}» دارد و کدِ تعریف‌نشده هم دارد؛ نمی‌شود حکم داد، دستی ببینید:</span></div>`;
+    html += tableFor(res.needsManual);
+  }
+  if (res.undefinedCodes.length) {
+    html += `<div class="field-hint" style="margin-top:var(--space-3)">کدهای تعریف‌نشده در این فایل: ${escapeHtml(res.undefinedCodes.join("، "))}</div>`;
+  }
+
+  if (res.violations.length || res.needsManual.length) {
+    html += `<div class="row" style="margin-top:var(--space-4); flex-wrap:wrap">
+      <button class="btn btn-secondary btn-sm" id="btn-sep-copy"><svg width="15" height="15"><use href="#icon-copy"></use></svg> کپی لیست</button>
+      <button class="btn btn-secondary btn-sm" id="btn-sep-excel"><svg width="15" height="15"><use href="#icon-download"></use></svg> دریافت اکسل</button>
+    </div>`;
+  }
+  out.innerHTML = html;
+
+  const allRows = [...res.violations, ...res.needsManual].map((b) => separationRowStrings(b, mode));
+  const copyBtn = $("#btn-sep-copy");
+  if (copyBtn) copyBtn.addEventListener("click", () => copyToClipboard([headers, ...allRows].map((r) => r.join("\t")).join("\n")));
+  const xlBtn = $("#btn-sep-excel");
+  if (xlBtn) xlBtn.addEventListener("click", () => {
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...res.violations.map((b) => separationRowStrings(b, mode))]);
+    ws["!views"] = [{ rightToLeft: true }];
+    XLSX.utils.book_append_sheet(wb, ws, "مشکوک");
+    if (res.needsManual.length) {
+      const ws2 = XLSX.utils.aoa_to_sheet([headers, ...res.needsManual.map((b) => separationRowStrings(b, mode))]);
+      ws2["!views"] = [{ rightToLeft: true }];
+      XLSX.utils.book_append_sheet(wb, ws2, "بررسی دستی");
+    }
+    XLSX.writeFile(wb, `separation-${mode}-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  });
+}
+
 function bindReportsView() {
   $("#btn-pick-sales-file").addEventListener("click", () => $("#sales-file-input").click());
   $("#sales-file-input").addEventListener("change", (e) => handleSalesFileSelected(e.target.files[0]));
   $("#btn-remove-sales-file").addEventListener("click", handleRemoveSalesFile);
   $("#btn-generate-report").addEventListener("click", handleGenerateReport);
   $("#btn-single-report").addEventListener("click", handleSingleReport);
+  $("#btn-sep-check").addEventListener("click", handleSeparationCheck);
+  $("#sep-group-select").addEventListener("change", () => { $("#sep-output").innerHTML = ""; });
+  $("#sep-count-nonsellable").addEventListener("change", () => { $("#sep-output").innerHTML = ""; });
+  $all("#sep-mode-tabs .tab-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      separationMode = btn.dataset.sepMode;
+      $all("#sep-mode-tabs .tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      updateSeparationHint();
+      $("#sep-output").innerHTML = "";
+    });
+  });
   $all("#single-report-type-tabs .tab-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       singleReportType = btn.dataset.singleType;
@@ -3945,6 +4154,7 @@ async function handleRemoveAppLock() {
 
 async function init() {
   await hydrateState();
+  separationGroupId = await getSetting("separationGroupId", null);
   await checkAppLock();
   document.documentElement.style.setProperty("--font-scale", String(state.fontScale));
 
@@ -3959,6 +4169,7 @@ async function init() {
   populateReportFormatSelect();
   loadSettingsFormFromState();
   populateSingleReportSelectors();
+  populateSeparationGroupSelect();
 
   renderTargetsTab();
   loadSellersFormFromState();

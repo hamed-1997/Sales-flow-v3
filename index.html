@@ -307,6 +307,44 @@
           <div id="single-report-output" style="margin-top: var(--space-5)"></div>
         </div>
 
+        <!-- بررسی تفکیک فاکتور (مثلاً روغن) -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">بررسی تفکیک فاکتور</div>
+              <div class="card-subtitle">پیدا کردن فاکتورهایی که کالای یک گروه (مثلاً روغن) باید جدا باشد ولی همراه کالاهای دیگر ثبت شده</div>
+            </div>
+          </div>
+
+          <div class="form-grid">
+            <div class="field">
+              <label>گروهی که باید جدا فاکتور شود</label>
+              <select id="sep-group-select"></select>
+            </div>
+            <div class="field">
+              <label>مرحله بررسی</label>
+              <div class="tabs" id="sep-mode-tabs">
+                <button type="button" class="tab-btn active" data-sep-mode="pre">قبل از ثبت (بر اساس کد مشتری)</button>
+                <button type="button" class="tab-btn" data-sep-mode="post">بعد از ثبت (بر اساس شماره پیش‌فاکتور)</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="field-hint" id="sep-mode-hint" style="margin-top:var(--space-3)"></div>
+
+          <div class="row" style="margin-top: var(--space-3)">
+            <label class="checkbox-label"><input type="checkbox" id="sep-count-nonsellable" /> کالاهای «غیرقابل فروش» (مثل استند) هم جزو «کالای دیگر» حساب شوند</label>
+          </div>
+
+          <div class="row" style="margin-top: var(--space-4)">
+            <button class="btn btn-primary" id="btn-sep-check">
+              <span class="icon"><svg><use href="#icon-search"></use></svg></span> بررسی
+            </button>
+          </div>
+
+          <div id="sep-output" style="margin-top: var(--space-5)"></div>
+        </div>
+
       </section>
 
       <!-- ===================== VIEW: MANAGEMENT ===================== -->
