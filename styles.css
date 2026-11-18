@@ -676,3 +676,6 @@ body.sf-boot #app-shell > *:not(#app-lock-overlay) { visibility: hidden; }
 }
 .btn-close-banner:hover { opacity: 1; }
 .history-summary { background: var(--color-accent-100); color: var(--color-accent-600); border-radius: var(--radius-md); padding: var(--space-3); margin-bottom: var(--space-3); font-size: var(--font-size-sm); font-weight: 600; }
+
+/* بررسی فاکتور: on narrow screens the two long stage tabs may wrap instead of overflowing */
+#sep-mode-tabs { flex-wrap: wrap; max-width: 100%; }

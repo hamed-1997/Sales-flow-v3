@@ -574,6 +574,17 @@ function switchView(viewKey) {
   $all(".nav-item").forEach((btn) => btn.classList.toggle("active", btn.dataset.view === viewKey));
   $all(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${viewKey}`));
   $(".view-scroll").scrollTo({ top: 0, behavior: "instant" });
+  if (viewKey === "invoice-check") updateInvoiceCheckFileStatus();
+}
+
+/** Shows, on the «بررسی فاکتور» page, whether a sales file is currently
+ * loaded (it is the same file as in گزارش‌گیری — one shared selection). */
+function updateInvoiceCheckFileStatus() {
+  const el = $("#inv-file-status");
+  if (!el) return;
+  el.textContent = currentSalesRows
+    ? `فایل آماده است (${formatNumber(currentSalesRows.rows.length)} ردیف)`
+    : "هنوز فایلی انتخاب نشده";
 }
 
 function switchManagementTab(tabKey) {
@@ -2994,6 +3005,9 @@ async function handleSalesFileSelected(file) {
   dropEl.classList.remove("has-file");
   removeBtn.style.display = "none";
   currentSalesRows = null;
+  lastSeparationResult = null;
+  if ($("#sep-output")) $("#sep-output").innerHTML = "";
+  updateInvoiceCheckFileStatus();
   $("#btn-generate-report").disabled = true;
   $("#sales-file-warning-slot").innerHTML = "";
   if (!file) return;
@@ -3007,6 +3021,7 @@ async function handleSalesFileSelected(file) {
       return;
     }
     currentSalesRows = info;
+    updateInvoiceCheckFileStatus();
     statusEl.textContent = "فایل انتخاب شد";
     dropEl.classList.add("has-file");
     removeBtn.style.display = "inline-flex";
@@ -3024,6 +3039,7 @@ function handleRemoveSalesFile() {
   lastComputedSums = null;
   lastSeparationResult = null;
   if ($("#sep-output")) $("#sep-output").innerHTML = "";
+  updateInvoiceCheckFileStatus();
   $("#sales-file-input").value = "";
   $("#sales-file-status").textContent = "";
   $("#sales-file-drop").classList.remove("has-file");
@@ -3836,7 +3852,7 @@ function handleSeparationCheck() {
   const out = $("#sep-output");
   out.innerHTML = "";
   if (!currentSalesRows) {
-    showToast("لطفاً ابتدا فایل فروش را در بخش «گزارش کلی» انتخاب کنید", "error");
+    showToast("ابتدا فایل فروش را انتخاب کنید", "error");
     return;
   }
   const valid = validateColumnsExist(currentSalesRows.range, state.columnMap);
@@ -3943,6 +3959,7 @@ function bindReportsView() {
   $("#btn-remove-sales-file").addEventListener("click", handleRemoveSalesFile);
   $("#btn-generate-report").addEventListener("click", handleGenerateReport);
   $("#btn-single-report").addEventListener("click", handleSingleReport);
+  $("#btn-inv-pick-file").addEventListener("click", () => $("#sales-file-input").click());
   $("#btn-sep-check").addEventListener("click", handleSeparationCheck);
   $("#sep-group-select").addEventListener("change", () => { $("#sep-output").innerHTML = ""; });
   $("#sep-count-nonsellable").addEventListener("change", () => { $("#sep-output").innerHTML = ""; });
