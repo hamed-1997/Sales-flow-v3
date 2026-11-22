@@ -3530,7 +3530,7 @@ async function drawReportCanvas(data, S) {
   }
 
   // ---- blank blue spacer bar (matches the sample report exactly) ----
-  cell(bounds[4].x0, bounds[0].x1, y, y + rowH.spacer, S.spacerBg);
+  cell(bounds[n - 1].x0, bounds[0].x1, y, y + rowH.spacer, S.spacerBg); // از ستون آخر تا اول — تعداد ستون‌ها ثابت فرض نمی‌شود
   y += rowH.spacer;
 
   // ---- footer stats row — order/labels/widths from S.footerOrder ----
