@@ -487,6 +487,20 @@
           <div class="field-hint" style="margin-bottom:var(--space-4)">
             هدف ماهانه هرکدام از گروه‌های انتخاب‌شده برای گزارش هر لاین، به‌همراه هدف مجموع همان لاین را وارد کنید. هر وقت اهداف تغییر کرد، همین‌جا مقدار قبلی را پاک و مقدار جدید را وارد کنید.
           </div>
+          <div class="card" style="margin-bottom:var(--space-5)">
+            <div class="card-header">
+              <div>
+                <div class="card-title">تعداد روز کاری ماه</div>
+                <div class="card-subtitle">ستون «هدف روزانه» در گزارش کامل روز = هدف ماه ÷ این عدد، رُند‌شده و بدون اعشار (برای هدف هر گروه و هدف مجموع، هر دو لاین)</div>
+              </div>
+            </div>
+            <div class="row" style="align-items:center; flex-wrap:wrap; gap:var(--space-3)">
+              <input type="number" min="1" max="31" step="1" id="working-days-input" placeholder="مثلاً ۲۴" style="width:140px" />
+              <button class="btn btn-primary" id="btn-save-working-days">
+                <span class="icon"><svg><use href="#icon-save"></use></svg></span> ذخیره روز کاری
+              </button>
+            </div>
+          </div>
           <div class="grid-2">
             <div class="card">
               <div class="card-header">

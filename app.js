@@ -343,16 +343,16 @@ const DEFAULT_REPORT_STYLE = {
   bodySize: 15,
   footerSize: 15,
   // right-to-left display order + per-column relative width + editable label + alignment + bold
-  columnOrder: ["product", "target", "today", "cumulative", "remaining"],
-  columnWeights: { product: 24, target: 19, today: 19, cumulative: 19, remaining: 19 },
-  columnLabels: { product: "کالا", target: "هدف ماه", today: "فروش امروز", cumulative: "فروش از ابتدای ماه", remaining: "مانده تا هدف" },
-  columnAlign: { product: "right", target: "center", today: "center", cumulative: "center", remaining: "center" },
-  columnBold: { product: true, target: false, today: false, cumulative: false, remaining: false },
+  columnOrder: ["product", "target", "dailyTarget", "today", "cumulative", "remaining"],
+  columnWeights: { product: 24, target: 19, dailyTarget: 19, today: 19, cumulative: 19, remaining: 19 },
+  columnLabels: { product: "کالا", target: "هدف ماه", dailyTarget: "هدف روزانه", today: "فروش امروز", cumulative: "فروش از ابتدای ماه", remaining: "مانده تا هدف" },
+  columnAlign: { product: "right", target: "center", dailyTarget: "center", today: "center", cumulative: "center", remaining: "center" },
+  columnBold: { product: true, target: false, dailyTarget: false, today: false, cumulative: false, remaining: false },
   // per-column background override (applies to that column's data-row + total-row cells);
   // columnBgEnabled[key]=false means "use the row's own background" (dataRowBg/totalRowBg)
-  columnBgEnabled: { product: false, target: false, today: false, cumulative: false, remaining: false },
-  columnBg: { product: "#ffffff", target: "#ffffff", today: "#ffffff", cumulative: "#ffffff", remaining: "#ffffff" },
-  imageWidth: 660,
+  columnBgEnabled: { product: false, target: false, dailyTarget: false, today: false, cumulative: false, remaining: false },
+  columnBg: { product: "#ffffff", target: "#ffffff", dailyTarget: "#ffffff", today: "#ffffff", cumulative: "#ffffff", remaining: "#ffffff" },
+  imageWidth: 785, // = 660 قبلی × (مجموع وزن ستون‌ها با ستون هدف روزانه ÷ بدون آن)، تا عرض هر ستون همان قبلی بماند
   borderWidth: 1,
   dateCellSpan: 1, // how many of the rightmost-columns' worth of width the date cell (top-left) takes up — default = just the last column
   // right-to-left display order + relative width + editable label for the footer stats row
@@ -387,7 +387,9 @@ const DEFAULT_REPORT_STYLE = {
   borderColor: "#94a3b8",
 };
 
-const REPORT_COLUMN_KEYS = ["product", "target", "today", "cumulative", "remaining"];
+const REPORT_COLUMN_KEYS = ["product", "target", "dailyTarget", "today", "cumulative", "remaining"];
+// ستون‌های قبل از اضافه شدن «هدف روزانه» — برای مهاجرت استایل‌های ذخیره‌شده
+const REPORT_COLUMN_KEYS_V1 = ["product", "target", "today", "cumulative", "remaining"];
 const REPORT_FOOTER_KEYS = ["customer", "perRep", "invalid"];
 
 /** Fills in any missing/malformed pieces of a saved reportStyle (e.g. from
@@ -402,9 +404,22 @@ function sanitizeReportStyle(raw) {
   s.columnBold = { ...DEFAULT_REPORT_STYLE.columnBold, ...(raw?.columnBold || {}) };
   s.columnBgEnabled = { ...DEFAULT_REPORT_STYLE.columnBgEnabled, ...(raw?.columnBgEnabled || {}) };
   s.columnBg = { ...DEFAULT_REPORT_STYLE.columnBg, ...(raw?.columnBg || {}) };
-  s.columnOrder = Array.isArray(raw?.columnOrder) && REPORT_COLUMN_KEYS.every((k) => raw.columnOrder.includes(k)) && raw.columnOrder.length === REPORT_COLUMN_KEYS.length
-    ? raw.columnOrder
-    : [...DEFAULT_REPORT_STYLE.columnOrder];
+  const isPermutationOf = (arr, keys) => Array.isArray(arr) && arr.length === keys.length && keys.every((k) => arr.includes(k));
+  if (isPermutationOf(raw?.columnOrder, REPORT_COLUMN_KEYS)) {
+    s.columnOrder = raw.columnOrder;
+  } else if (isPermutationOf(raw?.columnOrder, REPORT_COLUMN_KEYS_V1)) {
+    // استایل ذخیره‌شده از قبل از ستون «هدف روزانه» است: ترتیب سفارشی خود کاربر
+    // حفظ می‌شود و ستون جدید درست بعد از «هدف ماه» جا می‌گیرد؛ عرض تصویر هم
+    // به نسبت بزرگ می‌شود تا ستون‌های قبلی فشرده نشوند.
+    s.columnOrder = raw.columnOrder.flatMap((k) => (k === "target" ? ["target", "dailyTarget"] : [k]));
+    if (typeof raw.imageWidth === "number" && raw.imageWidth > 0) {
+      const oldSum = REPORT_COLUMN_KEYS_V1.reduce((t, k) => t + (Number(s.columnWeights[k]) || 0), 0);
+      const newSum = oldSum + (Number(s.columnWeights.dailyTarget) || 0);
+      if (oldSum > 0) s.imageWidth = Math.round(raw.imageWidth * newSum / oldSum);
+    }
+  } else {
+    s.columnOrder = [...DEFAULT_REPORT_STYLE.columnOrder];
+  }
   s.footerWeights = { ...DEFAULT_REPORT_STYLE.footerWeights, ...(raw?.footerWeights || {}) };
   s.footerLabels = { ...DEFAULT_REPORT_STYLE.footerLabels, ...(raw?.footerLabels || {}) };
   s.footerOrder = Array.isArray(raw?.footerOrder) && REPORT_FOOTER_KEYS.every((k) => raw.footerOrder.includes(k)) && raw.footerOrder.length === REPORT_FOOTER_KEYS.length
@@ -420,13 +435,14 @@ const SAMPLE_PREVIEW_REPORT_DATA = {
   lineLabel: "لاین یک",
   dateStr: "1405/06/08",
   rows: [
-    { name: "شوینده", target: 30552, todaySale: 2116, cumulative: 3871, remaining: 3871 - 30552, sellByUnit: false },
-    { name: "اکشن", target: 2804, todaySale: 37, cumulative: 123, remaining: 123 - 2804, sellByUnit: false },
-    { name: "پاستیل", target: 4950, todaySale: 95, cumulative: 242, remaining: 242 - 4950, sellByUnit: true },
+    { name: "شوینده", target: 30552, dailyTarget: 1389, todaySale: 2116, cumulative: 3871, remaining: 3871 - 30552, sellByUnit: false },
+    { name: "اکشن", target: 2804, dailyTarget: 127, todaySale: 37, cumulative: 123, remaining: 123 - 2804, sellByUnit: false },
+    { name: "پاستیل", target: 4950, dailyTarget: 225, todaySale: 95, cumulative: 242, remaining: 242 - 4950, sellByUnit: true },
   ],
   totalToday: 2248,
   totalCumulative: 4236,
   targetTotal: 38306,
+  totalDailyTarget: 1741,
   totalRemaining: 4236 - 38306,
   customerCount: 351,
   perRep: 70.2,
@@ -460,6 +476,7 @@ const state = {
   // ---- SalesFlow نسخه ۲ additions ----
   monthlyTargets: { line1: {}, line2: {} },  // { line1: {groupId: number}, line2: {...} }
   targetTotals: { line1: 0, line2: 0 },       // separately-announced total target per line
+  workingDays: 0,                              // تعداد روز کاری ماه — مخرج «هدف روزانه» (برای هر دو لاین یکی است)
   sellersCount: { line1: 0, line2: 0 },
   monthBaseline: {                             // گزارش فروش تا روز — مبدأ تجمعی ماه، به‌تفکیک گروه کالا
     line1: { date: "", amounts: {}, total: 0 },
@@ -520,6 +537,7 @@ async function hydrateState() {
 
   state.monthlyTargets = await getSetting("monthlyTargets", state.monthlyTargets);
   state.targetTotals = await getSetting("targetTotals", state.targetTotals);
+  state.workingDays = await getSetting("workingDays", 0);
   state.sellersCount = await getSetting("sellersCount", state.sellersCount);
   const rawBaseline = await getSetting("monthBaseline", state.monthBaseline);
   state.monthBaseline = {
@@ -1801,6 +1819,8 @@ async function handleSaveLineGroups(lineKey) {
    8b. اهداف ماهانه (Management > Targets tab) — SalesFlow نسخه ۲
    --------------------------------------------------------- */
 function renderTargetsTab() {
+  const wd = $("#working-days-input");
+  if (wd) wd.value = state.workingDays > 0 ? state.workingDays : "";
   ["line1", "line2"].forEach((lineKey) => {
     const slot = $(`#targets-${lineKey}-slot`);
     if (!slot) return;
@@ -1830,6 +1850,18 @@ function renderTargetsTab() {
         </div>
       </div>`;
   });
+}
+
+async function handleSaveWorkingDays() {
+  const raw = $("#working-days-input").value;
+  const v = toPersianSafeNumber(raw);
+  if (normalizeStr(raw) !== "" && (isNaN(v) || !Number.isInteger(v) || v < 1 || v > 31)) {
+    showToast("تعداد روز کاری باید یک عدد صحیح بین ۱ تا ۳۱ باشد", "error");
+    return;
+  }
+  state.workingDays = normalizeStr(raw) === "" ? 0 : v;
+  await setSetting("workingDays", state.workingDays);
+  showToast(state.workingDays > 0 ? `تعداد روز کاری ذخیره شد (${state.workingDays})` : "تعداد روز کاری پاک شد؛ ستون هدف روزانه «—» نشان داده می‌شود", "success");
 }
 
 async function handleSaveTargets(lineKey) {
@@ -2613,6 +2645,7 @@ async function handleExportBackup() {
     monthlyTargets: state.monthlyTargets,
     targetTotals: state.targetTotals,
     sellersCount: state.sellersCount,
+    workingDays: state.workingDays,
     monthBaseline: state.monthBaseline,
     salesLog: await Store.getAll("salesLog"),
     // SalesFlow نسخه ۳ — گروه‌های مادر
@@ -2680,6 +2713,7 @@ async function handleImportBackupFile(file) {
     if (payload.monthlyTargets) await setSetting("monthlyTargets", payload.monthlyTargets);
     if (payload.targetTotals) await setSetting("targetTotals", payload.targetTotals);
     if (payload.sellersCount) await setSetting("sellersCount", payload.sellersCount);
+    if (payload.workingDays != null) await setSetting("workingDays", payload.workingDays);
     if (payload.monthBaseline) await setSetting("monthBaseline", payload.monthBaseline);
     if (payload.reportStyle) await setSetting("reportStyle", payload.reportStyle);
     if (Array.isArray(payload.salesLog)) {
@@ -3294,6 +3328,7 @@ async function generateFullReport(dateStr, invalidPct) {
     const cum = await getMonthCumulativeRows(lineKey, dateStr, { exclusive: true }); // strictly before today — so re-generating/overwriting an already-saved day replaces it instead of double-counting
     // گزارش کامل روز (هدف/تجمعی/مانده) فعلاً فقط برای ردیف‌های گروه واقعی
     // محاسبه می‌شود — یک گروه مادر هدف/مبدأ تجمعی مستقل خودش را ندارد.
+    const days = state.workingDays > 0 ? state.workingDays : 0;
     const rows = rd.rows.filter((r) => r.groupId != null).map((r) => {
       const cumulative = (cum.byGroup[r.groupId] || 0) + r.rounded;
       const target = targets[r.groupId] != null ? targets[r.groupId] : null;
@@ -3303,6 +3338,8 @@ async function generateFullReport(dateStr, invalidPct) {
         sellByUnit: r.sellByUnit,
         todaySale: r.rounded,
         target,
+        // هدف روزانه = هدف ماه ÷ روز کاری، رُند به عدد صحیح (بدون هدف یا بدون روز کاری: «—»)
+        dailyTarget: target != null && days > 0 ? Math.round(target / days) : null,
         cumulative,
         remaining: target != null ? cumulative - target : null,
       };
@@ -3319,6 +3356,7 @@ async function generateFullReport(dateStr, invalidPct) {
       totalToday,
       totalCumulative,
       targetTotal,
+      totalDailyTarget: days > 0 ? Math.round(targetTotal / days) : null,
       totalRemaining: totalCumulative - targetTotal,
       customerCount: rd.customerCount,
       perRep,
@@ -3449,6 +3487,7 @@ async function drawReportCanvas(data, S) {
       const valuesByKey = {
         product: r.name,
         target: r.target != null ? fmt(r.target) : "—",
+        dailyTarget: r.dailyTarget != null ? fmt(r.dailyTarget) : "—",
         today: todayDisplay,
         cumulative: fmt(r.cumulative),
         remaining: r.remaining != null ? fmt(r.remaining) : "—",
@@ -3468,6 +3507,7 @@ async function drawReportCanvas(data, S) {
     const valuesByKey = {
       product: "کل محصولات",
       target: fmt(data.targetTotal),
+      dailyTarget: data.totalDailyTarget != null ? fmt(data.totalDailyTarget) : "—",
       today: fmt(data.totalToday),
       cumulative: fmt(data.totalCumulative),
       remaining: fmt(data.totalRemaining),
@@ -4038,6 +4078,7 @@ function bindManagementView() {
   $("#btn-save-line1-def").addEventListener("click", () => handleSaveLineGroups("line1"));
   $("#btn-save-line2-def").addEventListener("click", () => handleSaveLineGroups("line2"));
 
+  $("#btn-save-working-days").addEventListener("click", handleSaveWorkingDays);
   $("#btn-save-targets-line1").addEventListener("click", () => handleSaveTargets("line1"));
   $("#btn-save-targets-line2").addEventListener("click", () => handleSaveTargets("line2"));
 }
