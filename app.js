@@ -482,7 +482,6 @@ const state = {
     line1: { date: "", amounts: {}, total: 0 },
     line2: { date: "", amounts: {}, total: 0 },
   },
-  appLockPinHash: "",
   lastBackupAt: "",
 };
 
@@ -544,7 +543,6 @@ async function hydrateState() {
     line1: { date: rawBaseline?.line1?.date || "", amounts: rawBaseline?.line1?.amounts || {}, total: rawBaseline?.line1?.total ?? rawBaseline?.line1?.amount ?? 0 },
     line2: { date: rawBaseline?.line2?.date || "", amounts: rawBaseline?.line2?.amounts || {}, total: rawBaseline?.line2?.total ?? rawBaseline?.line2?.amount ?? 0 },
   };
-  state.appLockPinHash = await getSetting("appLockPinHash", "");
   state.lastBackupAt = await getSetting("lastBackupAt", "");
 }
 
@@ -592,17 +590,6 @@ function switchView(viewKey) {
   $all(".nav-item").forEach((btn) => btn.classList.toggle("active", btn.dataset.view === viewKey));
   $all(".view").forEach((v) => v.classList.toggle("active", v.id === `view-${viewKey}`));
   $(".view-scroll").scrollTo({ top: 0, behavior: "instant" });
-  if (viewKey === "invoice-check") updateInvoiceCheckFileStatus();
-}
-
-/** Shows, on the «بررسی فاکتور» page, whether a sales file is currently
- * loaded (it is the same file as in گزارش‌گیری — one shared selection). */
-function updateInvoiceCheckFileStatus() {
-  const el = $("#inv-file-status");
-  if (!el) return;
-  el.textContent = currentSalesRows
-    ? `فایل آماده است (${formatNumber(currentSalesRows.rows.length)} ردیف)`
-    : "هنوز فایلی انتخاب نشده";
 }
 
 function switchManagementTab(tabKey) {
@@ -1201,8 +1188,6 @@ function openGroupProductsModal(groupId) {
 function refreshAllGroupDependentUI() {
   populateManualGroupSelect();
   renderLineGroupCheckboxes();
-  populateSingleReportSelectors();
-  populateSeparationGroupSelect();
   renderParentGroupsList();
 }
 
@@ -2746,8 +2731,6 @@ async function handleImportBackupFile(file) {
     renderLineGroupCheckboxes();
     populateReportFormatSelect();
     loadSettingsFormFromState();
-    populateSingleReportSelectors();
-    populateSeparationGroupSelect();
     handleRemoveSalesFile();
     renderTargetsTab();
     renderBaselineTab();
@@ -3039,9 +3022,6 @@ async function handleSalesFileSelected(file) {
   dropEl.classList.remove("has-file");
   removeBtn.style.display = "none";
   currentSalesRows = null;
-  lastSeparationResult = null;
-  if ($("#sep-output")) $("#sep-output").innerHTML = "";
-  updateInvoiceCheckFileStatus();
   $("#btn-generate-report").disabled = true;
   $("#sales-file-warning-slot").innerHTML = "";
   if (!file) return;
@@ -3055,7 +3035,6 @@ async function handleSalesFileSelected(file) {
       return;
     }
     currentSalesRows = info;
-    updateInvoiceCheckFileStatus();
     statusEl.textContent = "فایل انتخاب شد";
     dropEl.classList.add("has-file");
     removeBtn.style.display = "inline-flex";
@@ -3071,9 +3050,6 @@ function handleRemoveSalesFile() {
   lastReportData = null;
   lastFullReportContext = null;
   lastComputedSums = null;
-  lastSeparationResult = null;
-  if ($("#sep-output")) $("#sep-output").innerHTML = "";
-  updateInvoiceCheckFileStatus();
   $("#sales-file-input").value = "";
   $("#sales-file-status").textContent = "";
   $("#sales-file-drop").classList.remove("has-file");
@@ -3674,93 +3650,6 @@ async function handleSaveDailySale() {
   showToast(`فروش روز ${toPersianDigits(dateStr)} ذخیره شد`, "success");
 }
 
-/* ----- گزارش تکی ----- */
-let singleReportType = "sales"; // 'sales' | 'coverage' — گزارش تکی mode
-
-function populateSingleReportSelectors() {
-  const lineSel = $("#single-line-select");
-  const groupSel = $("#single-group-select");
-  if (!lineSel || !groupSel) return;
-  lineSel.innerHTML = `<option value="line1">لاین یک</option><option value="line2">لاین دو</option>`;
-  const sortedGroups = [...state.groups].filter((g) => !g.nonSellable).sort((a, b) => a.order - b.order);
-  const groupOptions = sortedGroups.map((g) => `<option value="${itemKey("group", g.id)}">${escapeHtml(g.name)}</option>`);
-  // پوشش برای گروه مادر هم معنا دارد (برخلاف فروش، که به یکسان بودن «فروش
-  // به قوطی» زیرگروه‌ها نیاز دارد و گزارش تکی فعلاً فقط گروه واقعی را
-  // پشتیبانی می‌کند) — پس گزینه‌های گروه مادر را فقط در حالت پوشش نشان می‌دهیم.
-  const parentOptions = singleReportType === "coverage"
-    ? [...state.parentGroups].sort((a, b) => a.order - b.order).map((p) => `<option value="${itemKey("parent", p.id)}">${escapeHtml(p.name)} (گروه مادر)</option>`)
-    : [];
-  const allOptions = [...groupOptions, ...parentOptions];
-  groupSel.innerHTML = allOptions.length ? allOptions.join("") : `<option value="">— گروهی تعریف نشده —</option>`;
-}
-
-function handleSingleReport() {
-  const out = $("#single-report-output");
-  out.innerHTML = "";
-  if (!currentSalesRows) {
-    showToast("لطفاً ابتدا فایل فروش را در بخش «گزارش کلی» انتخاب کنید", "error");
-    return;
-  }
-  const valid = validateColumnsExist(currentSalesRows.range, state.columnMap);
-  if (!valid.ok) { showColumnValidationError(valid.field); return; }
-  if (!state.lines.line1.excelValue || !state.lines.line2.excelValue) {
-    showToast("ابتدا مقدار دقیق لاین‌ها را در تنظیمات وارد کنید", "error");
-    return;
-  }
-  const lineKey = $("#single-line-select").value;
-  const { type: selType, id: selId } = parseItemKey($("#single-group-select").value || "group:0");
-
-  const productMap = new Map(state.products.map((p) => [p.code, p]));
-  const groupsById = new Map(state.groups.map((g) => [g.id, g]));
-  const { line1, line2 } = computeSalesReport(currentSalesRows.rows, state.columnMap, state.lines, productMap, groupsById);
-  const target = lineKey === "line1" ? line1 : line2;
-
-  if (singleReportType === "coverage") {
-    let name, count;
-    if (selType === "parent") {
-      const p = parentGroupById(selId);
-      if (!p) { showToast("ابتدا حداقل یک گروه کالا یا گروه مادر تعریف کنید", "error"); return; }
-      const children = (p.childGroupIds || []).map((cid) => groupById(cid)).filter(Boolean);
-      const union = new Set();
-      children.forEach((c) => (target.groupCustomers[c.id] || new Set()).forEach((v) => union.add(v)));
-      name = p.name;
-      count = union.size;
-    } else {
-      const g = groupById(selId);
-      if (!g) { showToast("ابتدا حداقل یک گروه کالا تعریف کنید", "error"); return; }
-      name = g.name;
-      count = (target.groupCustomers[selId] || new Set()).size;
-    }
-    out.innerHTML = `
-      <div class="card" style="background:var(--color-surface-alt)">
-        <div class="row-between">
-          <span>لاین: <strong>${lineKey === "line1" ? "لاین یک" : "لاین دو"}</strong></span>
-          <span>پوشش: <strong>${escapeHtml(name)}</strong></span>
-          <span>تعداد مشتری: <strong class="num">${formatNumber(count)} نفر</strong></span>
-        </div>
-      </div>`;
-    return;
-  }
-
-  const group = groupById(selId);
-  if (!group) {
-    showToast("ابتدا حداقل یک گروه کالا تعریف کنید", "error");
-    return;
-  }
-  const exact = target.groupSumsDisplay[selId] || 0;
-  const rounded = Math.round(exact);
-  const displayValue = group.sellByUnit ? `${formatNumber(rounded)} قوطی` : formatNumber(rounded);
-
-  out.innerHTML = `
-    <div class="card" style="background:var(--color-surface-alt)">
-      <div class="row-between">
-        <span>لاین: <strong>${lineKey === "line1" ? "لاین یک" : "لاین دو"}</strong></span>
-        <span>گروه: <strong>${escapeHtml(group.name)}</strong></span>
-        <span>تعداد فروش: <strong class="num">${displayValue}</strong></span>
-      </div>
-    </div>`;
-}
-
 /* ---------------------------------------------------------
    12. Wiring — event bindings & init
    --------------------------------------------------------- */
@@ -3799,226 +3688,11 @@ function enableFileDragDrop(dropEl, onFile) {
   });
 }
 
-/* ---------------------------------------------------------
-   بررسی تفکیک فاکتور — مثلاً «کالاهای روغن باید جدا از بقیه فاکتور شوند»
-   دو مرحله دارد:
-   • قبل از ثبت: هنوز شماره پیش‌فاکتور نیست (ستون خالی یا صفر)، پس فقط
-     بر اساس کد مشتری می‌شود گروه‌بندی کرد.
-   • بعد از ثبت: شماره پیش‌فاکتور هست، پس بر اساس همان گروه‌بندی می‌کنیم؛
-     مشتری‌ای که درست دو فاکتور جدا گرفته مشکوک علامت نمی‌خورد.
-   --------------------------------------------------------- */
-let separationMode = "pre";   // 'pre' | 'post'
-let separationGroupId = null; // آخرین گروه انتخاب‌شده (در تنظیمات ذخیره می‌شود)
-let lastSeparationResult = null;
-
-/** Pure function (no DOM / state access) — easy to test on its own.
- * Walks the sales rows, buckets them by customer code (mode 'pre', only rows
- * WITHOUT a real پیش‌فاکتور number) or by پیش‌فاکتور number (mode 'post', only
- * rows WITH one), and reports every bucket that contains a product of
- * `targetGroupId` together with at least one product of another group. */
-function findSeparationViolations({ rows, columnMap, productMap, groupsById, targetGroupId, mode, countNonSellableAsOther }) {
-  const buckets = new Map();
-  const undefinedCodes = new Set();
-
-  for (const row of rows) {
-    const invRaw = normalizeStr(row[columnMap.invoice]);
-    const invNum = toPersianSafeNumber(invRaw);
-    // «ثبت‌شده» = شماره دارد و صفر نیست (همان قاعده‌ای که گزارش فروش هم دارد)
-    const registered = invRaw !== "" && invNum !== 0;
-    if (mode === "pre" ? registered : !registered) continue;
-
-    const customer = normalizeStr(row[columnMap.customer]);
-    const key = mode === "pre" ? customer : invRaw;
-    if (!key) continue;
-
-    const code = normalizeStr(row[columnMap.code]);
-    if (!code) continue;
-
-    let bucket = buckets.get(key);
-    if (!bucket) {
-      bucket = { key, customer: "", invoice: mode === "post" ? invRaw : "", targetItems: [], otherItems: [], unknownItems: [] };
-      buckets.set(key, bucket);
-    }
-    if (!bucket.customer && customer) bucket.customer = customer;
-
-    const qty = normalizeStr(row[columnMap.qty]);
-    const product = productMap.get(code);
-    if (!product) {
-      undefinedCodes.add(code);
-      bucket.unknownItems.push({ code, qty });
-      continue;
-    }
-    const group = groupsById.get(product.group);
-    if (group && group.nonSellable && !countNonSellableAsOther) continue;
-
-    if (product.group === targetGroupId) bucket.targetItems.push({ code, qty });
-    else bucket.otherItems.push({ code, qty, groupName: group ? group.name : "" });
-  }
-
-  const all = [...buckets.values()];
-  const withTarget = all.filter((b) => b.targetItems.length);
-  return {
-    totalKeys: all.length,
-    targetKeys: withTarget.length,
-    violations: withTarget.filter((b) => b.otherItems.length),
-    // کالای گروه هدف دارد، کالای دیگرِ مشخصی ندارد، ولی کدِ تعریف‌نشده دارد —
-    // نمی‌شود حکم داد، باید دستی دیده شود
-    needsManual: withTarget.filter((b) => !b.otherItems.length && b.unknownItems.length),
-    undefinedCodes: [...undefinedCodes],
-  };
-}
-
-function populateSeparationGroupSelect() {
-  const sel = $("#sep-group-select");
-  if (!sel) return;
-  const sorted = [...state.groups].sort((a, b) => a.order - b.order);
-  sel.innerHTML = sorted.length
-    ? sorted.map((g) => `<option value="${g.id}">${escapeHtml(g.name)}</option>`).join("")
-    : `<option value="">— گروهی تعریف نشده —</option>`;
-  const pick = sorted.find((g) => g.id === separationGroupId) || sorted.find((g) => /روغن/.test(g.name)) || sorted[0];
-  if (pick) sel.value = String(pick.id);
-  updateSeparationHint();
-}
-
-function updateSeparationHint() {
-  const hint = $("#sep-mode-hint");
-  if (!hint) return;
-  hint.textContent = separationMode === "pre"
-    ? "فقط ردیف‌هایی بررسی می‌شوند که هنوز شماره پیش‌فاکتور ندارند (خالی یا صفر). چون شماره‌ای نیست، گروه‌بندی بر اساس کد مشتری است: مشتری‌ای که کالای این گروه و کالای دیگر هم دارد باید موقع صدور، دو فاکتور جدا بگیرد."
-    : "فقط ردیف‌هایی بررسی می‌شوند که شماره پیش‌فاکتور دارند (غیر صفر). گروه‌بندی بر اساس شماره پیش‌فاکتور است، پس مشتری‌ای که درست دو فاکتور جدا گرفته مشکوک علامت نمی‌خورد.";
-}
-
-function handleSeparationCheck() {
-  const out = $("#sep-output");
-  out.innerHTML = "";
-  if (!currentSalesRows) {
-    showToast("ابتدا فایل فروش را انتخاب کنید", "error");
-    return;
-  }
-  const valid = validateColumnsExist(currentSalesRows.range, state.columnMap);
-  if (!valid.ok) { showColumnValidationError(valid.field); return; }
-  const groupId = Number($("#sep-group-select").value);
-  const group = groupById(groupId);
-  if (!group) {
-    showToast("ابتدا حداقل یک گروه کالا تعریف کنید", "error");
-    return;
-  }
-  separationGroupId = groupId;
-  setSetting("separationGroupId", groupId);
-
-  const res = findSeparationViolations({
-    rows: currentSalesRows.rows,
-    columnMap: state.columnMap,
-    productMap: new Map(state.products.map((p) => [p.code, p])),
-    groupsById: new Map(state.groups.map((g) => [g.id, g])),
-    targetGroupId: groupId,
-    mode: separationMode,
-    countNonSellableAsOther: $("#sep-count-nonsellable").checked,
-  });
-  lastSeparationResult = { res, group, mode: separationMode };
-  renderSeparationResult();
-}
-
-/** Turns one bucket into the plain strings used by both the on-screen table
- * and the copy / Excel export, so the three always agree. */
-function separationRowStrings(b, mode) {
-  const items = (arr, withGroup) =>
-    arr.map((i) => `${i.code}${i.qty !== "" ? ` (${i.qty})` : ""}${withGroup && i.groupName ? ` — ${i.groupName}` : ""}`).join("، ");
-  const target = items(b.targetItems, false);
-  const others = [items(b.otherItems, true), items(b.unknownItems.map((u) => ({ ...u, groupName: "کد تعریف‌نشده" })), true)].filter(Boolean).join("، ");
-  return mode === "pre" ? [b.key, target, others] : [b.invoice, b.customer, target, others];
-}
-
-function renderSeparationResult() {
-  const out = $("#sep-output");
-  if (!lastSeparationResult) { out.innerHTML = ""; return; }
-  const { res, group, mode } = lastSeparationResult;
-  const keyLabel = mode === "pre" ? "مشتری" : "پیش‌فاکتور";
-  const headers = mode === "pre"
-    ? ["کد مشتری", `کالاهای «${group.name}»`, "کالاهای دیگر"]
-    : ["شماره پیش‌فاکتور", "کد مشتری", `کالاهای «${group.name}»`, "کالاهای دیگر"];
-
-  const tableFor = (list) => `
-    <div class="table-wrap" style="max-height:420px">
-      <table class="data-table">
-        <thead><tr>${headers.map((h) => `<th>${escapeHtml(h)}</th>`).join("")}</tr></thead>
-        <tbody>${list
-          .map((b) => `<tr>${separationRowStrings(b, mode).map((c) => `<td>${escapeHtml(c)}</td>`).join("")}</tr>`)
-          .join("")}</tbody>
-      </table>
-    </div>`;
-
-  const summary = `از ${formatNumber(res.totalKeys)} ${keyLabel} بررسی‌شده، ${formatNumber(res.targetKeys)} مورد کالای «${escapeHtml(group.name)}» دارد؛ در ${formatNumber(res.violations.length)} مورد از آن‌ها کالای دیگری هم همراهش است.`;
-
-  let html = `<div class="field-hint" style="margin-bottom:var(--space-3)">${summary}</div>`;
-
-  if (res.violations.length) {
-    html += `<div class="alert alert-warning" style="margin-bottom:var(--space-3)">${icon("alert-triangle")}<span>${formatNumber(res.violations.length)} ${keyLabel} مشکوک است و باید بررسی شود:</span></div>`;
-    html += tableFor(res.violations);
-  } else {
-    html += `<div class="card" style="background:var(--color-surface-alt)"><strong style="color:var(--color-success-600, #16a34a)">موردی پیدا نشد</strong> — هیچ ${keyLabel}ی کالای «${escapeHtml(group.name)}» را همراه کالای دیگر ندارد.</div>`;
-  }
-
-  if (res.needsManual.length) {
-    html += `<div class="alert alert-warning" style="margin:var(--space-4) 0 var(--space-3)">${icon("alert-triangle")}<span>${formatNumber(res.needsManual.length)} مورد کالای «${escapeHtml(group.name)}» دارد و کدِ تعریف‌نشده هم دارد؛ نمی‌شود حکم داد، دستی ببینید:</span></div>`;
-    html += tableFor(res.needsManual);
-  }
-  if (res.undefinedCodes.length) {
-    html += `<div class="field-hint" style="margin-top:var(--space-3)">کدهای تعریف‌نشده در این فایل: ${escapeHtml(res.undefinedCodes.join("، "))}</div>`;
-  }
-
-  if (res.violations.length || res.needsManual.length) {
-    html += `<div class="row" style="margin-top:var(--space-4); flex-wrap:wrap">
-      <button class="btn btn-secondary btn-sm" id="btn-sep-copy"><svg width="15" height="15"><use href="#icon-copy"></use></svg> کپی لیست</button>
-      <button class="btn btn-secondary btn-sm" id="btn-sep-excel"><svg width="15" height="15"><use href="#icon-download"></use></svg> دریافت اکسل</button>
-    </div>`;
-  }
-  out.innerHTML = html;
-
-  const allRows = [...res.violations, ...res.needsManual].map((b) => separationRowStrings(b, mode));
-  const copyBtn = $("#btn-sep-copy");
-  if (copyBtn) copyBtn.addEventListener("click", () => copyToClipboard([headers, ...allRows].map((r) => r.join("\t")).join("\n")));
-  const xlBtn = $("#btn-sep-excel");
-  if (xlBtn) xlBtn.addEventListener("click", () => {
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...res.violations.map((b) => separationRowStrings(b, mode))]);
-    ws["!views"] = [{ rightToLeft: true }];
-    XLSX.utils.book_append_sheet(wb, ws, "مشکوک");
-    if (res.needsManual.length) {
-      const ws2 = XLSX.utils.aoa_to_sheet([headers, ...res.needsManual.map((b) => separationRowStrings(b, mode))]);
-      ws2["!views"] = [{ rightToLeft: true }];
-      XLSX.utils.book_append_sheet(wb, ws2, "بررسی دستی");
-    }
-    XLSX.writeFile(wb, `separation-${mode}-${new Date().toISOString().slice(0, 10)}.xlsx`);
-  });
-}
-
 function bindReportsView() {
   $("#btn-pick-sales-file").addEventListener("click", () => $("#sales-file-input").click());
   $("#sales-file-input").addEventListener("change", (e) => handleSalesFileSelected(e.target.files[0]));
   $("#btn-remove-sales-file").addEventListener("click", handleRemoveSalesFile);
   $("#btn-generate-report").addEventListener("click", handleGenerateReport);
-  $("#btn-single-report").addEventListener("click", handleSingleReport);
-  $("#btn-inv-pick-file").addEventListener("click", () => $("#sales-file-input").click());
-  $("#btn-sep-check").addEventListener("click", handleSeparationCheck);
-  $("#sep-group-select").addEventListener("change", () => { $("#sep-output").innerHTML = ""; });
-  $("#sep-count-nonsellable").addEventListener("change", () => { $("#sep-output").innerHTML = ""; });
-  $all("#sep-mode-tabs .tab-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      separationMode = btn.dataset.sepMode;
-      $all("#sep-mode-tabs .tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
-      updateSeparationHint();
-      $("#sep-output").innerHTML = "";
-    });
-  });
-  $all("#single-report-type-tabs .tab-btn").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      singleReportType = btn.dataset.singleType;
-      $all("#single-report-type-tabs .tab-btn").forEach((b) => b.classList.toggle("active", b === btn));
-      populateSingleReportSelectors();
-      $("#single-report-output").innerHTML = "";
-    });
-  });
   enableFileDragDrop($("#sales-file-drop"), handleSalesFileSelected);
 
   $("#report-format-select").addEventListener("change", async (e) => {
@@ -4099,121 +3773,9 @@ function bindSettingsView() {
   $("#btn-save-sellers").addEventListener("click", handleSaveSellers);
 }
 
-/* ---------------------------------------------------------
-   0c. قفل برنامه (اختیاری) — یک صفحه‌ی قفل ساده، نه رمزنگاری واقعی؛
-   فقط جلوی باز کردن سرسری اپ توسط دیگران را می‌گیرد.
-   --------------------------------------------------------- */
-async function sha256Hex(text) {
-  const enc = new TextEncoder().encode(text);
-  const buf = await crypto.subtle.digest("SHA-256", enc);
-  return Array.from(new Uint8Array(buf)).map((b) => b.toString(16).padStart(2, "0")).join("");
-}
-
-/** Blocks app rendering behind a PIN prompt if one is set — resolves once
- * unlocked (or immediately if no PIN is configured). */
-async function checkAppLock() {
-  if (!state.appLockPinHash) {
-    document.body.classList.remove("sf-boot");
-    return;
-  }
-  const overlay = $("#app-lock-overlay");
-  const input = $("#app-lock-input");
-  const errorEl = $("#app-lock-error");
-  overlay.style.display = "flex";
-  document.body.classList.remove("sf-boot");
-  input.focus();
-
-  await new Promise((resolve) => {
-    async function tryUnlock() {
-      const val = input.value;
-      if (!val) return;
-      const hash = await sha256Hex(val);
-      if (hash === state.appLockPinHash) {
-        overlay.style.display = "none";
-        input.value = "";
-        errorEl.style.display = "none";
-        resolve();
-      } else {
-        errorEl.style.display = "block";
-        input.value = "";
-        input.focus();
-      }
-    }
-    $("#app-lock-submit").addEventListener("click", tryUnlock);
-    input.addEventListener("keydown", (e) => { if (e.key === "Enter") tryUnlock(); });
-  });
-}
-
-function renderAppLockForm() {
-  const slot = $("#app-lock-form-slot");
-  if (!slot) return;
-  if (!state.appLockPinHash) {
-    slot.innerHTML = `
-      <div class="field-hint" style="margin-bottom:var(--space-3)">هنوز رمزی تنظیم نشده — هر کسی اپ را باز کند مستقیم واردش می‌شود.</div>
-      <div class="form-grid">
-        <div class="field"><label>رمز جدید (حداقل ۴ رقم/کاراکتر)</label><input type="password" id="lock-new-pin" autocomplete="off" /></div>
-        <div class="field"><label>تکرار رمز</label><input type="password" id="lock-new-pin-confirm" autocomplete="off" /></div>
-      </div>
-      <div class="row" style="margin-top:var(--space-4)">
-        <button class="btn btn-primary" id="btn-set-app-lock">${icon("lock")} فعال کردن قفل</button>
-      </div>`;
-    $("#btn-set-app-lock").addEventListener("click", handleSetAppLock);
-  } else {
-    slot.innerHTML = `
-      <div class="field-hint" style="margin-bottom:var(--space-3)">قفل روشن است. برای تغییر یا حذف رمز، اول رمز فعلی را وارد کنید.</div>
-      <div class="form-grid">
-        <div class="field"><label>رمز فعلی</label><input type="password" id="lock-current-pin" autocomplete="off" /></div>
-        <div class="field"><label>رمز جدید (برای حذف قفل، خالی بگذارید)</label><input type="password" id="lock-new-pin" autocomplete="off" /></div>
-      </div>
-      <div class="row" style="margin-top:var(--space-4); flex-wrap:wrap">
-        <button class="btn btn-primary" id="btn-change-app-lock">${icon("save")} ذخیره تغییر رمز</button>
-        <button class="btn btn-secondary" id="btn-remove-app-lock">${icon("trash")} حذف قفل</button>
-        <button class="btn btn-secondary" id="btn-lock-now">${icon("lock")} قفل کردن الان</button>
-      </div>`;
-    $("#btn-change-app-lock").addEventListener("click", handleChangeAppLock);
-    $("#btn-remove-app-lock").addEventListener("click", handleRemoveAppLock);
-    $("#btn-lock-now").addEventListener("click", () => location.reload());
-  }
-}
-
-async function handleSetAppLock() {
-  const pin = $("#lock-new-pin").value;
-  const confirm = $("#lock-new-pin-confirm").value;
-  if (pin.length < 4) { showToast("رمز باید حداقل ۴ رقم/کاراکتر باشد", "error"); return; }
-  if (pin !== confirm) { showToast("رمز و تکرارش یکی نیستند", "error"); return; }
-  state.appLockPinHash = await sha256Hex(pin);
-  await setSetting("appLockPinHash", state.appLockPinHash);
-  showToast("قفل فعال شد", "success");
-  renderAppLockForm();
-}
-
-async function handleChangeAppLock() {
-  const current = $("#lock-current-pin").value;
-  const newPin = $("#lock-new-pin").value;
-  const currentHash = await sha256Hex(current || "");
-  if (currentHash !== state.appLockPinHash) { showToast("رمز فعلی اشتباه است", "error"); return; }
-  if (!newPin) { showToast("برای حذف قفل، از دکمه «حذف قفل» استفاده کنید", "error"); return; }
-  if (newPin.length < 4) { showToast("رمز جدید باید حداقل ۴ رقم/کاراکتر باشد", "error"); return; }
-  state.appLockPinHash = await sha256Hex(newPin);
-  await setSetting("appLockPinHash", state.appLockPinHash);
-  showToast("رمز تغییر کرد", "success");
-  renderAppLockForm();
-}
-
-async function handleRemoveAppLock() {
-  const current = $("#lock-current-pin").value;
-  const currentHash = await sha256Hex(current || "");
-  if (currentHash !== state.appLockPinHash) { showToast("رمز فعلی اشتباه است", "error"); return; }
-  state.appLockPinHash = "";
-  await setSetting("appLockPinHash", "");
-  showToast("قفل حذف شد", "success");
-  renderAppLockForm();
-}
-
 async function init() {
   await hydrateState();
-  separationGroupId = await getSetting("separationGroupId", null);
-  await checkAppLock();
+  document.body.classList.remove("sf-boot");
   document.documentElement.style.setProperty("--font-scale", String(state.fontScale));
 
   renderGroupAddForm();
@@ -4226,14 +3788,11 @@ async function init() {
   renderLineGroupCheckboxes();
   populateReportFormatSelect();
   loadSettingsFormFromState();
-  populateSingleReportSelectors();
-  populateSeparationGroupSelect();
 
   renderTargetsTab();
   loadSellersFormFromState();
   renderBaselineTab();
   renderHistoryTab();
-  renderAppLockForm();
   updateBackupStatusText();
   checkBackupReminder();
 

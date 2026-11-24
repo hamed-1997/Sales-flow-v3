@@ -127,19 +127,6 @@
 
 <div id="app-shell">
 
-<!-- قفل برنامه — فقط وقتی رمزی تنظیم شده باشد نمایش داده می‌شود -->
-<div id="app-lock-overlay" style="display:none">
-  <div class="app-lock-box">
-    <div class="app-lock-icon"><svg width="32" height="32"><use href="#icon-lock"></use></svg></div>
-    <div class="app-lock-title">SalesFlow قفل است</div>
-    <div class="app-lock-subtitle">برای ادامه، رمز را وارد کنید</div>
-    <input type="password" id="app-lock-input" inputmode="numeric" autocomplete="off" placeholder="رمز" />
-    <div class="app-lock-error" id="app-lock-error" style="display:none">رمز اشتباه است</div>
-    <button class="btn btn-primary" id="app-lock-submit" style="width:100%">باز کردن</button>
-  </div>
-</div>
-
-
   <!-- ===================== SIDEBAR ===================== -->
   <aside class="sidebar">
     <div class="sidebar-brand">
@@ -156,9 +143,6 @@
       </button>
       <button class="nav-item sidebar-nav-item" data-view="management">
         <span class="icon"><svg><use href="#icon-box"></use></svg></span><span class="label">مدیریت</span>
-      </button>
-      <button class="nav-item sidebar-nav-item" data-view="invoice-check">
-        <span class="icon"><svg><use href="#icon-file-text"></use></svg></span><span class="label">بررسی فاکتور</span>
       </button>
       <button class="nav-item sidebar-nav-item" data-view="settings">
         <span class="icon"><svg><use href="#icon-sliders"></use></svg></span><span class="label">تنظیمات</span>
@@ -181,9 +165,6 @@
       </button>
       <button class="nav-item bottom-nav-item" data-view="management">
         <span class="icon"><svg><use href="#icon-box"></use></svg></span><span>مدیریت</span>
-      </button>
-      <button class="nav-item bottom-nav-item" data-view="invoice-check">
-        <span class="icon"><svg><use href="#icon-file-text"></use></svg></span><span>فاکتور</span>
       </button>
       <button class="nav-item bottom-nav-item" data-view="settings">
         <span class="icon"><svg><use href="#icon-sliders"></use></svg></span><span>تنظیمات</span>
@@ -277,42 +258,6 @@
           <div class="field-hint" style="margin-top:var(--space-3)" id="save-daily-sale-hint">با این دکمه، فروش امروز در مخزن فروش ذخیره می‌شود و برای محاسبه «فروش از ابتدای ماه» روز بعد استفاده خواهد شد.</div>
         </div>
 
-        <!-- گزارش تکی -->
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">گزارش تکی</div>
-              <div class="card-subtitle">مشاهده فروش یا پوشش یک گروه کالا (یا گروه مادر) در یک لاین مشخص</div>
-            </div>
-          </div>
-
-          <div class="form-grid">
-            <div class="field">
-              <label>نوع گزارش</label>
-              <div class="tabs" id="single-report-type-tabs">
-                <button type="button" class="tab-btn active" data-single-type="sales">فروش</button>
-                <button type="button" class="tab-btn" data-single-type="coverage">پوشش (تعداد مشتری)</button>
-              </div>
-            </div>
-            <div class="field">
-              <label>لاین</label>
-              <select id="single-line-select"></select>
-            </div>
-            <div class="field">
-              <label>گروه کالا</label>
-              <select id="single-group-select"></select>
-            </div>
-          </div>
-
-          <div class="row" style="margin-top: var(--space-4)">
-            <button class="btn btn-primary" id="btn-single-report">
-              <span class="icon"><svg><use href="#icon-search"></use></svg></span> نمایش گزارش
-            </button>
-          </div>
-
-          <div id="single-report-output" style="margin-top: var(--space-5)"></div>
-        </div>
-
       </section>
 
       <!-- ===================== VIEW: MANAGEMENT ===================== -->
@@ -328,7 +273,7 @@
           <button class="tab-btn" data-mtab="report-def">تعریف گزارش کلی</button>
           <button class="tab-btn" data-mtab="targets">اهداف ماهانه</button>
           <button class="tab-btn" data-mtab="baseline">گزارش فروش تا روز</button>
-          <button class="tab-btn" data-mtab="history">تاریخچه فروش</button>
+          <button class="tab-btn" data-mtab="history" hidden style="display:none">تاریخچه فروش</button>
         </div>
 
         <!-- --- گروه کالاها --- -->
@@ -572,68 +517,6 @@
       </section>
 
       <!-- ===================== VIEW: SETTINGS ===================== -->
-      <!-- ===================== VIEW: INVOICE CHECK ===================== -->
-      <section class="view" id="view-invoice-check">
-        <div class="page-header">
-          <div class="page-header-title">بررسی فاکتور</div>
-          <div class="page-header-sub">کنترل فاکتورهایی که باید فقط شامل یک گروه کالا (مثلاً روغن) باشند</div>
-        </div>
-
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">فایل فروش</div>
-              <div class="card-subtitle">همان فایلی که در «گزارش‌گیری» استفاده می‌شود؛ یک بار انتخاب کنید، در هر دو بخش در دسترس است</div>
-            </div>
-          </div>
-          <div class="row" style="align-items:center; flex-wrap:wrap; gap:var(--space-3)">
-            <button class="btn btn-secondary" id="btn-inv-pick-file">
-              <span class="icon"><svg><use href="#icon-upload-cloud"></use></svg></span> انتخاب فایل فروش
-            </button>
-            <span class="field-hint" id="inv-file-status"></span>
-          </div>
-        </div>
-
-        <!-- بررسی تفکیک فاکتور (مثلاً روغن) -->
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title">بررسی تفکیک فاکتور</div>
-              <div class="card-subtitle">پیدا کردن فاکتورهایی که کالای یک گروه (مثلاً روغن) باید جدا باشد ولی همراه کالاهای دیگر ثبت شده</div>
-            </div>
-          </div>
-
-          <div class="form-grid">
-            <div class="field">
-              <label>گروهی که باید جدا فاکتور شود</label>
-              <select id="sep-group-select"></select>
-            </div>
-            <div class="field">
-              <label>مرحله بررسی</label>
-              <div class="tabs" id="sep-mode-tabs">
-                <button type="button" class="tab-btn active" data-sep-mode="pre">قبل از ثبت (بر اساس کد مشتری)</button>
-                <button type="button" class="tab-btn" data-sep-mode="post">بعد از ثبت (بر اساس شماره پیش‌فاکتور)</button>
-              </div>
-            </div>
-          </div>
-
-          <div class="field-hint" id="sep-mode-hint" style="margin-top:var(--space-3)"></div>
-
-          <div class="row" style="margin-top: var(--space-3)">
-            <label class="checkbox-label"><input type="checkbox" id="sep-count-nonsellable" /> کالاهای «غیرقابل فروش» (مثل استند) هم جزو «کالای دیگر» حساب شوند</label>
-          </div>
-
-          <div class="row" style="margin-top: var(--space-4)">
-            <button class="btn btn-primary" id="btn-sep-check">
-              <span class="icon"><svg><use href="#icon-search"></use></svg></span> بررسی
-            </button>
-          </div>
-
-          <div id="sep-output" style="margin-top: var(--space-5)"></div>
-        </div>
-
-      </section>
-
       <section class="view" id="view-settings">
         <div class="page-header">
           <div class="page-header-title">تنظیمات</div>
@@ -739,17 +622,7 @@
           </div>
         </div>
 
-        <div class="card">
-          <div class="card-header">
-            <div>
-              <div class="card-title"><span class="icon"><svg><use href="#icon-lock"></use></svg></span> قفل برنامه با رمز</div>
-              <div class="card-subtitle">یک صفحه‌ی قفل ساده — جلوی باز کردن سرسری اپ توسط دیگران را می‌گیرد (رمزنگاری واقعی داده‌ها نیست)</div>
-            </div>
-          </div>
-          <div id="app-lock-form-slot"></div>
-        </div>
-
-        <div class="card">
+                <div class="card">
           <div class="card-header">
             <div>
               <div class="card-title">ظاهر برنامه</div>

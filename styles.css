@@ -616,31 +616,7 @@ table.data-table td.num, table.data-table th.num { text-align: left; }
 }
 
 /* ---------- App lock screen ---------- */
-#app-lock-overlay {
-  position: fixed; inset: 0; z-index: 9999;
-  background: var(--color-bg); display: flex; align-items: center; justify-content: center;
-  padding: var(--space-5);
-}
-.app-lock-box {
-  width: 100%; max-width: 320px; text-align: center;
-  background: var(--color-surface); border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg); padding: var(--space-8) var(--space-6);
-  box-shadow: 0 8px 30px rgba(11,63,115,0.12);
-}
-.app-lock-icon {
-  width: 60px; height: 60px; margin: 0 auto var(--space-4);
-  border-radius: 50%; background: var(--color-accent-100); color: var(--color-accent-600);
-  display: flex; align-items: center; justify-content: center;
-}
-.app-lock-title { font-weight: 700; font-size: var(--font-size-lg); margin-bottom: var(--space-1); }
-.app-lock-subtitle { color: var(--color-text-secondary); font-size: var(--font-size-sm); margin-bottom: var(--space-5); }
-#app-lock-input {
-  width: 100%; text-align: center; letter-spacing: 4px; font-size: var(--font-size-lg);
-  padding: var(--space-3); border: 1px solid var(--color-border); border-radius: var(--radius-md);
-  margin-bottom: var(--space-3); background: var(--color-surface-alt);
-}
-.app-lock-error { color: var(--color-danger-600); font-size: var(--font-size-sm); margin-bottom: var(--space-3); }
-body.sf-boot #app-shell > *:not(#app-lock-overlay) { visibility: hidden; }
+body.sf-boot #app-shell > * { visibility: hidden; }
 
 /* ---------- Update-available banner ---------- */
 #update-banner {
